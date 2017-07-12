@@ -13,6 +13,8 @@ mkdir ${BUILD_DIR}
 echo "#######################################################################"
 echo "# Running in: ${BUILD_DIR}"
 echo "# Revision:   $(git log --oneline -1)"
+echo "# Rerun with: "
+echo ". ${ENVIRONMENT_FILE} ; $(realpath deployer)"
 echo "#######################################################################"
 
 #
