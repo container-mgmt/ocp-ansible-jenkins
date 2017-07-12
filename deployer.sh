@@ -18,7 +18,7 @@ echo "#######################################################################"
 #
 # Checkout openshift-ansible
 #
-(cd ${BUILD_DIR} && git clone https://github.com/openshift/openshift-ansible $OPENSHIFT_ANSIBLE_PATH)
+(cd ${BUILD_DIR} && git clone $OPENSHIFT_ANSIBLE_URL $OPENSHIFT_ANSIBLE_PATH)
 
 (cd $OPENSHIFT_ANSIBLE_PATH && exec git checkout -B deployment $OPENSHIFT_ANSIBLE_REF)
 
