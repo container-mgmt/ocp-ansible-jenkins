@@ -1,13 +1,13 @@
 BUILD_DIR="${WORKSPACE}/${BUILD_ID}"
 INVENTORY_TEMPLATE_PATH="${WORKSPACE}/inventory-template.ini"
 INVENTORY_PATH="${BUILD_DIR}/inventory.ini"
-COPY_ID="${WORKSPACE}/copy-id.sh"
 OPENSHIFT_ANSIBLE_PATH="${BUILD_DIR}/openshift-ansible"
+ENVIRONMENT_FILE="${BUILD_DIR}/environment"
 ID_FILE="${WORKSPACE}/../id_rsa"
 REDHAT_IT_ROOT_CA_PATH="/etc/pki/ca-trust/source/anchors/RH-IT-Root-CA.crt"
 
 ansible --version
-env
+export| tee ${ENVIRONMENT_FILE}
 
 mkdir ${BUILD_DIR}
 echo "#######################################################################"
