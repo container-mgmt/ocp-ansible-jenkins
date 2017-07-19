@@ -11,6 +11,7 @@ BUILD_ID=8
 COMPUTE_IPS="10.35.48.203 10.35.48.204"
 DEPLOYERS_VERSION=v3.6
 INFRA_IPS="10.35.48.201 10.35.48.202"
+INSTALL_EXAMPLES="true"
 LDAP_PROVIDERS="[{'name': 'test', 'challenge': 'true', 'login': 'true', 'kind': 'LDAPPasswordIdentityProvider', 'attributes': {'id': ['dn'], 'email': ['mail'], 'name': ['cn'], 'preferredUsername': ['uid']}, 'bindDN': '', 'bindPassword': '', 'ca': 'ex-cacert.crt', 'insecure': 'false', 'url': 'ldap://ldap.example.com:389/ou=users,dc=example,dc=com?uid'}]"
 MASTER_IP=10.35.48.200
 OPENSHIFT_ANSIBLE_REF=openshift-ansible-3.6.140-1
