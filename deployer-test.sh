@@ -16,6 +16,7 @@ LDAP_PROVIDERS="[{'name': 'test', 'challenge': 'true', 'login': 'true', 'kind': 
 MASTER_IP=10.35.48.200
 OPENSHIFT_ANSIBLE_REF=openshift-ansible-3.6.140-1
 OPENSHIFT_ANSIBLE_REPO_URL=https://github.com/openshift/openshift-ansible
+PLUGIN_URLS="https://github.com/moolitayer/ocp-ansible-jenkins/blob/master/plugins/osh_common_output.sh https://github.com/moolitayer/ocp-ansible-jenkins/blob/master/plugins/osh_common_output.sh"
 ROOT_PASSWORD="pass"
 WORKSPACE=$(realpath ../test_workspace)
 
