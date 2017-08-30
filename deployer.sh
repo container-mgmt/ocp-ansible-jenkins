@@ -74,6 +74,7 @@ echo "# Using inventory: "
 cat ${INVENTORY_PATH}
 echo "#######################################################################"
 
+RETRCODE=0
 sshpass -p${ROOT_PASSWORD} \
                 ansible-playbook \
                   --user root \
@@ -82,3 +83,26 @@ sshpass -p${ROOT_PASSWORD} \
                   --private-key=${ID_FILE} \
                   --inventory=${INVENTORY_PATH} \
                   ${OPENSHIFT_ANSIBLE_PATH}/playbooks/byo/config.yml
+
+if [ $? -ne '0' ]; then
+  RETRCODE=1
+fi
+
+COUNTER=1
+for URL in $PLUGIN_URLS
+do
+  echo "EXECUTING SCRIPT [${URL}] ON [${MASTER_HOSTNAME}]:"
+  sshpass -p${ROOT_PASSWORD} \
+                ssh -o StrictHostKeyChecking=no root@${MASTER_HOSTNAME} \
+                wget --quiet -O /root/script_"$(printf %02d $COUNTER)".sh  ${URL}
+
+  # -o ConnectTimeout=${TIMEOUT}
+  sshpass -p${ROOT_PASSWORD} \
+                ssh -o StrictHostKeyChecking=no root@${MASTER_HOSTNAME} bash script_$(printf %02d $COUNTER).sh
+  if [ $? -ne '0' ]; then
+    RETRCODE=1
+  fi
+  COUNTER=$((COUNTER+1))
+done
+
+exit ${RETRCODE}
