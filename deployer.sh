@@ -15,7 +15,6 @@ PREDEFINED_PVS_TO_CREATE="registry metrics logging logging-ops prometheus promet
 
 
 ansible --version
-export| tee ${ENVIRONMENT_FILE}
 
 
 sudo_mkdir_if_not_exist () {
@@ -30,6 +29,7 @@ sudo_mkdir_if_not_exist () {
 
 
 mkdir ${BUILD_DIR}
+export| tee ${ENVIRONMENT_FILE}
 echo "#######################################################################"
 echo "# Running in: ${BUILD_DIR}"
 echo "# Revision:   $(git log --oneline -1)"
