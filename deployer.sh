@@ -100,6 +100,71 @@ do
   COUNTER=$((COUNTER+1))
 done
 
+METRICS_BLOCK="# no metrics"
+if [ "$INSTALL_METRICS" == "true" ]; then
+  METRICS_BLOCK="openshift_metrics_install_metrics=true
+openshift_metrics_image_version=${DEPLOYERS_IMAGE_VERSION}
+openshift_metrics_image_prefix=openshift3/
+openshift_metrics_storage_kind=nfs
+openshift_metrics_storage_host=${EXT_NFS_SERVER}
+openshift_metrics_storage_nfs_directory=${CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED}
+openshift_metrics_storage_volume_name=metrics
+openshift_metrics_storage_labels={'storage': 'metrics'}"
+fi
+
+LOGGING_BLOCK="# no logging"
+if [ "$INSTALL_LOGGING" == "true" ]; then
+  LOGGING_BLOCK="openshift_logging_install_logging=true
+openshift_logging_image_prefix=openshift3/
+openshift_logging_image_version=${DEPLOYERS_IMAGE_VERSION}
+openshift_logging_storage_kind=nfs
+openshift_logging_storage_host=${EXT_NFS_SERVER}
+openshift_logging_storage_nfs_directory=${CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED}
+openshift_logging_storage_volume_name=logging
+openshift_logging_storage_labels={'storage': 'logging'}"
+fi
+
+LOGGING_OPS_BLOCK="# no logging ops"
+if [ "$INSTALL_LOGGING_OPS" == "true" ]; then
+  LOGGING_OPS_BLOCK="openshift_logging_enable_ops_cluster=true
+openshift_loggingops_storage_kind=nfs
+openshift_loggingops_storage_host=${EXT_NFS_SERVER}
+openshift_loggingops_storage_nfs_directory=${CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED}
+openshift_loggingops_storage_volume_name=logging-ops
+openshift_loggingops_storage_labels={'storage': 'logging-ops'}"
+fi
+
+PROMETHEUS_BLOCK="# no prometheus"
+if [ "$INSTALL_PROMETHEUS" == "true" ]; then
+  PROMETHEUS_BLOCK="openshift_hosted_prometheus_deploy=true
+openshift_prometheus_image_prefix=openshift3/
+openshift_prometheus_storage_kind=nfs
+openshift_prometheus_storage_host=${EXT_NFS_SERVER}
+openshift_prometheus_storage_nfs_directory=${CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED}
+openshift_prometheus_storage_volume_name=prometheus
+openshift_prometheus_storage_labels={'storage': 'prometheus'}
+openshift_prometheus_storage_type=pvc
+
+openshift_prometheus_alertmanager_image_prefix=openshift3/
+openshift_prometheus_alertmanager_storage_kind=nfs
+openshift_prometheus_alertmanager_storage_host=${EXT_NFS_SERVER}
+openshift_prometheus_alertmanager_storage_nfs_directory=${CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED}
+openshift_prometheus_alertmanager_storage_volume_name=prometheus-alertmanager
+openshift_prometheus_alertmanager_storage_labels={'storage': 'prometheus-alertmanager'}
+openshift_prometheus_alertmanager_storage_type=pvc
+
+openshift_prometheus_alertbuffer_image_prefix=openshift3/
+openshift_prometheus_alertbuffer_storage_kind=nfs
+openshift_prometheus_alertbuffer_storage_host=${EXT_NFS_SERVER}
+openshift_prometheus_alertbuffer_storage_nfs_directory=${CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED}
+openshift_prometheus_alertbuffer_storage_volume_name=prometheus-alertbuffer
+openshift_prometheus_alertbuffer_storage_labels={'storage': 'prometheus-alertbuffer'}
+openshift_prometheus_alertbuffer_storage_type=pvc
+
+openshift_prometheus_proxy_image_prefix=openshift3/
+"
+fi
+
 #
 # Substitute variables
 #
@@ -116,10 +181,10 @@ export REDHAT_IT_ROOT_CA_PATH
 export EXT_NFS_SERVER
 export EXT_NFS_BASE_EXPORT_PATH
 export CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED
-export INSTALL_METRICS
-export INSTALL_LOGGING
-export INSTALL_LOGGING_OPS
-export INSTALL_PROMETHEUS
+export METRICS_BLOCK
+export LOGGING_BLOCK
+export LOGGING_OPS_BLOCK
+export PROMETHEUS_BLOCK
 
 envsubst < ${INVENTORY_TEMPLATE_PATH} > ${INVENTORY_PATH}
 
