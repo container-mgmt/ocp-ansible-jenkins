@@ -128,6 +128,7 @@ RETRCODE=0
 
 sshpass -p${ROOT_PASSWORD} \
                 ansible-playbook \
+                  -vvvv \
                   --user root \
                   --connection=ssh \
                   --ask-pass \
