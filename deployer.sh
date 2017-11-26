@@ -208,6 +208,14 @@ if [ $? -ne '0' ]; then
   RETRCODE=1
 fi
 
+echo "Creating PVs..."
+sshpass -p${ROOT_PASSWORD} rsync -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
+for PV in `seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS}`
+do
+  sshpass -p${ROOT_PASSWORD} ssh root@${MASTER_HOSTNAME} oc create -f ${TMP_RESOURCE_DIR}/${PV}
+done
+
+
 COUNTER=1
 for URL in $PLUGIN_URLS
 do
