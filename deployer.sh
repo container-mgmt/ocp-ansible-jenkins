@@ -209,13 +209,13 @@ if [ $? -ne '0' ]; then
 fi
 
 echo "Creating PVs..."
-sshpass -p${ROOT_PASSWORD} rsync -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
+sshpass -p${ROOT_PASSWORD} rsync -e "ssh -o StrictHostKeyChecking=no" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
 
 PV_YAML_DIR=`basename ${TMP_RESOURCE_DIR}`
 
 for PV in `seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS}`
 do
-  sshpass -p${ROOT_PASSWORD} ssh root@${MASTER_HOSTNAME} oc create -f ${PV_YAML_DIR}/${PV}
+  sshpass -p${ROOT_PASSWORD} ssh -o StrictHostKeyChecking=no root@${MASTER_HOSTNAME} oc create -f ${PV_YAML_DIR}/${PV}
 done
 
 
