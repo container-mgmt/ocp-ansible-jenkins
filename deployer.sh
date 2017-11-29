@@ -220,17 +220,17 @@ sshpass -p${ROOT_PASSWORD} \
 
 if [ $? -ne '0' ]; then
   RETRCODE=1
+else
+  echo "Creating PVs..."
+  sshpass -p${ROOT_PASSWORD} rsync -e "ssh -o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
+
+  PV_YAML_DIR=`basename ${TMP_RESOURCE_DIR}`
+
+  for PV in `seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS}`
+  do
+    sshpass -p${ROOT_PASSWORD} ssh -o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s root@${MASTER_HOSTNAME} oc create -f ${PV_YAML_DIR}/${PV}
+  done
 fi
-
-echo "Creating PVs..."
-sshpass -p${ROOT_PASSWORD} rsync -e "ssh -o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
-
-PV_YAML_DIR=`basename ${TMP_RESOURCE_DIR}`
-
-for PV in `seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS}`
-do
-  sshpass -p${ROOT_PASSWORD} ssh -o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s root@${MASTER_HOSTNAME} oc create -f ${PV_YAML_DIR}/${PV}
-done
 
 
 COUNTER=1
