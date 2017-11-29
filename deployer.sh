@@ -1,3 +1,4 @@
+#! /bin/bash
 BUILD_DIR="${WORKSPACE}/${BUILD_ID}"
 INVENTORY_TEMPLATE_PATH="${WORKSPACE}/inventory-template_ext_nfs.ini"
 PV_FILE_TEMPLATE="${WORKSPACE}/pv-template.yaml"
@@ -12,8 +13,8 @@ CLUSTER_EXT_NFS_BASE_EXPORT_PATH="${EXT_NFS_BASE_EXPORT_PATH_NORMALIZED}\/${NAME
 CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED="${EXT_NFS_BASE_EXPORT_PATH}/${NAME_PREFIX}"
 TMP_MNT_PATH="${BUILD_DIR}/mnt"
 TMP_RESOURCE_DIR="${BUILD_DIR}/${NAME_PREFIX}_PVs"
-PREDEFINED_PVS_TO_CREATE="registry metrics logging logging-ops prometheus prometheus-alertmanager prometheus-alertbuffer"
-
+PREDEFINED_PVS_TO_CREATE="registry metrics logging logging-ops prometheus prometheus-alertmanager prometheus-alertbuffer cfme-app cfme-db"
+MANAGEIQ_IMAGE=${MANAGEIQ_IMAGE:docker.io/ilackarms/miq-app-frontend-unstable}
 
 ansible --version
 
@@ -165,6 +166,18 @@ openshift_prometheus_proxy_image_prefix=openshift3/
 "
 fi
 
+MANAGEIQ_BLOCK="# No ManageIQ"
+if [ "$INSTALL_MANAGEIQ" == "true" ]; then
+  MANAGEIQ_BLOCK="openshift_management_install_management=true
+openshift_management_app_template=cfme-template
+openshift_management_template_parameters={'APPLICATION_IMG_NAME': '${MANAGEIQ_IMAGE}', 'FRONTEND_APPLICATION_IMG_TAG': 'latest'}
+openshift_management_install_beta=true
+openshift_management_storage_class=nfs_external
+openshift_management_storage_nfs_external_hostname=${EXT_NFS_SERVER}
+openshift_management_storage_nfs_base_dir=${CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED}
+"
+fi
+
 #
 # Substitute variables
 #
@@ -185,6 +198,7 @@ export METRICS_BLOCK
 export LOGGING_BLOCK
 export LOGGING_OPS_BLOCK
 export PROMETHEUS_BLOCK
+export MANAGEIQ_BLOCK
 
 envsubst < ${INVENTORY_TEMPLATE_PATH} > ${INVENTORY_PATH}
 
