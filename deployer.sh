@@ -15,6 +15,7 @@ TMP_MNT_PATH="${BUILD_DIR}/mnt"
 TMP_RESOURCE_DIR="${BUILD_DIR}/${NAME_PREFIX}_PVs"
 PREDEFINED_PVS_TO_CREATE="registry metrics logging logging-ops prometheus prometheus-alertmanager prometheus-alertbuffer miq-app miq-db"
 MANAGEIQ_IMAGE=${MANAGEIQ_IMAGE:docker.io/ilackarms/miq-app-frontend-unstable}
+SSH_ARGS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s"
 
 ansible --version
 
@@ -218,32 +219,61 @@ sshpass -p${ROOT_PASSWORD} \
                   --inventory=${INVENTORY_PATH} \
                   ${OPENSHIFT_ANSIBLE_PATH}/playbooks/byo/config.yml
 
+SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
+
 if [ $? -ne '0' ]; then
   RETRCODE=1
 else
   echo "Creating PVs..."
-  sshpass -p${ROOT_PASSWORD} rsync -e "ssh -o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
+  sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
 
   PV_YAML_DIR=`basename ${TMP_RESOURCE_DIR}`
 
   for PV in `seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS}`
   do
-    sshpass -p${ROOT_PASSWORD} ssh -o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s root@${MASTER_HOSTNAME} oc create -f ${PV_YAML_DIR}/${PV}
+    ${SSH_COMMAND} oc create -f ${PV_YAML_DIR}/${PV}
   done
 fi
 
+
+if [ "$INSTALL_MANAGEIQ" == "true" ]; then
+  echo "Configuring OpenShift provider in ManageIQ..."
+
+  HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
+  PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
+  HTTPD_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
+  CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
+  OC_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
+
+  sshpass -p${ROOT_PASSWORD} \
+                ansible-playbook \
+                  --user root \
+                  --connection=ssh \
+                  --ask-pass \
+                  --private-key=${ID_FILE} \
+                  --inventory=${INVENTORY_PATH} \
+                  --extra-vars \
+                    "provider_name=OCP_with_Prometheus \
+                    mgmt_infra_sa_token=${OC_TOKEN} \
+                    ca_crt=\"${CA_CRT}\" \
+                    oo_first_master=${MASTER_HOSTNAME} \
+                    httpd_route=${HTTPD_ROUTE} \
+                    hawkular_route=${HAWKULAR_ROUTE} \
+                    alerts_route=${PROMETHEUS_ALERTS_ROUTE}" \
+                ./miqplaybook.yml
+fi
 
 COUNTER=1
 for URL in $PLUGIN_URLS
 do
   echo "EXECUTING SCRIPT [${URL}] ON [${MASTER_HOSTNAME}]:"
   sshpass -p${ROOT_PASSWORD} \
-                ssh -o StrictHostKeyChecking=no root@${MASTER_HOSTNAME} \
+                ssh ${SSH_ARGS} root@${MASTER_HOSTNAME} \
                 wget --quiet -O /root/script_"$(printf %02d $COUNTER)".sh  ${URL}
 
   # -o ConnectTimeout=${TIMEOUT}
   sshpass -p${ROOT_PASSWORD} \
-                ssh -o StrictHostKeyChecking=no root@${MASTER_HOSTNAME} bash script_$(printf %02d $COUNTER).sh
+                ssh ${SSH_ARGS} root@${MASTER_HOSTNAME} bash script_$(printf %02d $COUNTER).sh
   if [ $? -ne '0' ]; then
     RETRCODE=1
   fi
