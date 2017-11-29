@@ -260,7 +260,10 @@ if [ "$INSTALL_MANAGEIQ" == "true" ]; then
                     httpd_route=${HTTPD_ROUTE} \
                     hawkular_route=${HAWKULAR_ROUTE} \
                     alerts_route=${PROMETHEUS_ALERTS_ROUTE}" \
-                ./miqplaybook.yml
+                ${WORKSPACE}/miqplaybook.yml
+  if [ $? -ne '0' ]; then
+    RETRCODE=1
+  fi
 fi
 
 COUNTER=1
