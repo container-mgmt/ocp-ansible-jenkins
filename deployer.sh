@@ -201,6 +201,7 @@ export LOGGING_BLOCK
 export LOGGING_OPS_BLOCK
 export PROMETHEUS_BLOCK
 export MANAGEIQ_BLOCK
+export WILDCARD_DNS_SERVICE
 
 envsubst < ${INVENTORY_TEMPLATE_PATH} > ${INVENTORY_PATH}
 
@@ -236,6 +237,8 @@ else
   done
 fi
 
+echo "Creating PVs..."
+sshpass -p${ROOT_PASSWORD} rsync -e "ssh -o StrictHostKeyChecking=no" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
 
 if [ "$INSTALL_MANAGEIQ" == "true" ]; then
   echo "Checking out Ansible 2.4..."
