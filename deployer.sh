@@ -237,6 +237,13 @@ fi
 
 
 if [ "$INSTALL_MANAGEIQ" == "true" ]; then
+  echo "Checking out Ansible 2.4..."
+  git clone https://github.com/ansible/ansible.git
+  cd ansible
+  git checkout stable-2.4
+  source hacking/env-setup
+  cd ..
+  ansible --version
   echo "Configuring OpenShift provider in ManageIQ..."
 
   HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
