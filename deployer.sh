@@ -16,6 +16,7 @@ TMP_RESOURCE_DIR="${BUILD_DIR}/${NAME_PREFIX}_PVs"
 PREDEFINED_PVS_TO_CREATE="registry metrics logging logging-ops prometheus prometheus-alertmanager prometheus-alertbuffer miq-app miq-db"
 MANAGEIQ_IMAGE=${MANAGEIQ_IMAGE:docker.io/ilackarms/miq-app-frontend-unstable}
 SSH_ARGS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s"
+WILDCARD_DNS_SERVICE=${WILDCARD_DNS_SERVICE:xip.io}
 
 ansible --version
 
@@ -77,14 +78,14 @@ sudo umount ${TMP_MNT_PATH}
 #
 # Build inventory Variables for substitution
 #
-MASTER_HOSTNAME="${NAME_PREFIX}-master01.${MASTER_IP}.nip.io"
+MASTER_HOSTNAME="${NAME_PREFIX}-master01.${MASTER_IP}.${WILDCARD_DNS_SERVICE}"
 MASTER_HOST_SPEC="${MASTER_HOSTNAME} openshift_hostname=${MASTER_HOSTNAME}"
 
 INFRA_HOST_SPEC_LIST=""
 COUNTER=1
 for INFRA_IP in $INFRA_IPS
 do
-  INFRA_HOST="${NAME_PREFIX}-infra$(printf %02d $COUNTER).${INFRA_IP}.nip.io"
+  INFRA_HOST="${NAME_PREFIX}-infra$(printf %02d $COUNTER).${INFRA_IP}.${WILDCARD_DNS_SERVICE}"
   INFRA_HOST_SPEC_LIST="${INFRA_HOST_SPEC_LIST}${INFRA_HOST} openshift_hostname=${INFRA_HOST} openshift_node_labels=\"{'region': 'infra', 'zone': 'default'}\"
 "
   INFRA_ROUTER_IP="${INFRA_IP}"
@@ -96,7 +97,7 @@ COMPUTE_HOST_SPEC_LIST=""
 COUNTER=1
 for COMPUTE_IP in $COMPUTE_IPS
 do
-  COMPUTE_HOST="${NAME_PREFIX}-compute$(printf %02d $COUNTER).${COMPUTE_IP}.nip.io"
+  COMPUTE_HOST="${NAME_PREFIX}-compute$(printf %02d $COUNTER).${COMPUTE_IP}.${WILDCARD_DNS_SERVICE}"
   COMPUTE_HOST_SPEC_LIST="${COMPUTE_HOST_SPEC_LIST}${COMPUTE_HOST} openshift_hostname=${COMPUTE_HOST} openshift_node_labels=\"{'region': 'primary', 'zone': 'default'}\"
 "
   COUNTER=$((COUNTER+1))
