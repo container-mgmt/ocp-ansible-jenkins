@@ -240,7 +240,7 @@ fi
 echo "Creating PVs..."
 sshpass -p${ROOT_PASSWORD} rsync -e "ssh -o StrictHostKeyChecking=no" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
 
-if [ "$INSTALL_MANAGEIQ" == "true" ]; then
+if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "true" ]; then
   echo "Checking out Ansible 2.4..."
   git clone https://github.com/ansible/ansible.git
   cd ansible
