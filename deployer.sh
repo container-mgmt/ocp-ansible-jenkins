@@ -261,8 +261,6 @@ if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "tru
                   --user root \
                   --connection=ssh \
                   --ask-pass \
-                  --private-key=${ID_FILE} \
-                  --inventory=${INVENTORY_PATH} \
                   --extra-vars \
                     "provider_name=OCP_with_Prometheus \
                     mgmt_infra_sa_token=${OC_TOKEN} \
