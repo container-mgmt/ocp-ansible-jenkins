@@ -82,6 +82,15 @@ MASTER_HOSTNAME="${NAME_PREFIX}-master01.${MASTER_IP}.${WILDCARD_DNS_SERVICE}"
 
 # Create inventory
 set -e
+if [ "$STORAGE_TYPE" == "internal_nfs" ]; then
+    NFS_SERVER_PARAM=""  # NFS on the cluster master
+else
+    # NFS on a custom server (external or part of the cluster)
+    NFS_SERVER_PARAM="--nfs-server=\"${EXT_NFS_SERVER}\""
+fi
+if [ "$STORAGE_TYPE" == "internal_nfs_custom" ]; then
+    STORAGE_TYPE="internal_nfs"
+fi
 python "${WORKSPACE}/create_inventory.py" --master-ip="${MASTER_IP}" \
                                           --infra-ips="${INFRA_IPS}" \
                                           --compute-ips="${COMPUTE_IPS}" \
@@ -100,7 +109,7 @@ python "${WORKSPACE}/create_inventory.py" --master-ip="${MASTER_IP}" \
                                           --ldap-providers="${LDAP_PROVIDERS}" \
                                           --ca-path="${REDHAT_IT_ROOT_CA_PATH}" \
                                           --nfs-export-path="${CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED}" \
-                                          --nfs-server="${EXT_NFS_SERVER}" \
+                                          ${NFS_SERVER_PARAM} \
                                           --manageiq-image="${MANAGEIQ_IMAGE}" \
                                      > "${INVENTORY_PATH}"
 set +e
