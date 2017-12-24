@@ -1,0 +1,36 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+  - name: Create a new provider in ManageIQ
+    manageiq_provider:
+      name: '{{ provider_name }}'
+      type: 'Openshift'
+      provider:
+        auth_key: '{{ mgmt_infra_sa_token }}'
+        hostname: '{{ oo_first_master }}'
+        port: 8443
+        verify_ssl: true
+        security_protocol: "ssl-with-validation-custom-ca"
+        certificate_authority: '{{ ca_crt }}'
+      metrics:
+        auth_key: '{{ mgmt_infra_sa_token }}'
+        role: 'hawkular'
+        hostname: '{{ hawkular_route }}'
+        port: 443
+        verify_ssl: true
+        security_protocol: "ssl-with-validation-custom-ca"
+        certificate_authority: '{{ ca_crt }}'
+      alerts:
+        auth_key: '{{ mgmt_infra_sa_token }}'
+        role: 'prometheus_alerts'
+        hostname: '{{ alerts_route }}'
+        port: 443
+        verify_ssl: true
+        security_protocol: "ssl-with-validation-custom-ca"
+        certificate_authority: '{{ ca_crt }}'
+      manageiq_connection:
+        url: "https://{{ httpd_route }}"
+        username: 'admin'
+        password: 'smartvm'
+        verify_ssl: false
