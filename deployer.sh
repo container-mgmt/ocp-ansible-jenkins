@@ -159,7 +159,8 @@ if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "tru
 
   HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
   PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
-  HTTPD_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
+  PROMETHEUS_METRICS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' metrics 2> /dev/null)"
+  CFME_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
   CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
   OC_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
 
@@ -169,13 +170,15 @@ if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "tru
                   --connection=ssh \
                   --ask-pass \
                   --extra-vars \
-                    "provider_name=OCP_with_Prometheus \
-                    mgmt_infra_sa_token=${OC_TOKEN} \
+                    "provider_name=${NAME_PREFIX} \
+                    management_admin_token=${OC_TOKEN} \
                     ca_crt=\"${CA_CRT}\" \
-                    oo_first_master=${MASTER_HOSTNAME} \
-                    httpd_route=${HTTPD_ROUTE} \
+                    ocp_master_host=${MASTER_HOSTNAME} \
+                    cfme_route=${CFME_ROUTE} \
+                    metrics_role=${METRICS_ROLE} \
                     hawkular_route=${HAWKULAR_ROUTE} \
-                    alerts_route=${PROMETHEUS_ALERTS_ROUTE}" \
+                    prometheus_metrics_route=${PROMETHEUS_METRICS_ROUTE} \
+                    prometheus_alerts_route=${PROMETHEUS_ALERTS_ROUTE}" \
                 ${WORKSPACE}/miqplaybook.yml
   if [ $? -ne '0' ]; then
     RETRCODE=1
