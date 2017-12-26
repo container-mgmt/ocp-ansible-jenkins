@@ -4,33 +4,33 @@
   tasks:
   - name: Create a new provider in ManageIQ
     manageiq_provider:
-      name: '{{ provider_name }}'
+      name: "{{ provider_name|default(lookup('env', 'PROVIDER_NAME')) }}"
       type: 'Openshift'
       provider:
-        auth_key: '{{ management_admin_token }}'
-        hostname: '{{ ocp_master_host }}'
+        auth_key: "{{ lookup('env', 'OPENSHIFT_MANAGEMENT_ADMIN_TOKEN') }}"
+        hostname: "{{ lookup('env', 'OPENSHIFT_MASTER_HOST') }}"
         port: 8443
         verify_ssl: true
         security_protocol: "ssl-with-validation-custom-ca"
-        certificate_authority: '{{ ca_crt }}'
+        certificate_authority: "{{ lookup('env', 'OPENSHIFT_CA_CRT') }}"
       metrics:
-        auth_key: '{{ management_admin_token }}'
-        role: '{{ metrics_role }}'
-        hostname: "{{ hawkular_route if metrics_role == 'hawkular' else prometheus_metrics_route }}"
+        auth_key: "{{ lookup('env', 'OPENSHIFT_MANAGEMENT_ADMIN_TOKEN') }}"
+        role: "{{ metrics_role|default('prometheus') }}"
+        hostname: "{{ lookup('env', 'OPENSHIFT_HAWKULAR_ROUTE') if lookup('env', 'METRICS_ROLE') == 'hawkular' else lookup('env', 'OPENSHIFT_PROMETHEUS_METRICS_ROUTE') }}"
         port: 443
         verify_ssl: true
         security_protocol: "ssl-with-validation-custom-ca"
-        certificate_authority: '{{ ca_crt }}'
+        certificate_authority: "{{ lookup('env', 'OPENSHIFT_CA_CRT') }}"
       alerts:
-        auth_key: '{{ management_admin_token }}'
+        auth_key: "{{ lookup('env', 'OPENSHIFT_MANAGEMENT_ADMIN_TOKEN') }}"
         role: 'prometheus_alerts'
-        hostname: '{{ prometheus_alerts_route }}'
+        hostname: "{{ lookup('env', 'OPENSHIFT_PROMETHEUS_ALERTS_ROUTE') }}"
         port: 443
         verify_ssl: true
         security_protocol: "ssl-with-validation-custom-ca"
-        certificate_authority: '{{ ca_crt }}'
+        certificate_authority: "{{ lookup('env', 'OPENSHIFT_CA_CRT') }}"
       manageiq_connection:
-        url: "https://{{ cfme_route }}"
+        url: "{{ cfme_route|default(lookup('env', 'OPENSHIFT_CFME_ROUTE')) }}"
         username: 'admin'
         password: 'smartvm'
         verify_ssl: false
