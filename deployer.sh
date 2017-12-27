@@ -145,8 +145,6 @@ elif [ "${STORAGE_TYPE}" == "external_nfs" ]; then
       done
 fi
 
-echo "Creating PVs..."
-
 if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "true" ]; then
   echo "Checking out Ansible 2.4..."
   git clone https://github.com/ansible/ansible.git
@@ -157,29 +155,15 @@ if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "tru
   ansible --version
   echo "Configuring OpenShift provider in ManageIQ..."
 
-  HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
-  PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
-  PROMETHEUS_METRICS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' metrics 2> /dev/null)"
-  CFME_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
-  CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
-  OC_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
+  export OPENSHIFT_HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
+  export OPENSHIFT_PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
+  export OPENSHIFT_PROMETHEUS_METRICS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' metrics 2> /dev/null)"
+  export OPENSHIFT_CFME_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
+  export OPENSHIFT_MASTER_HOST="$(${SSH_COMMAND} oc get nodes -o name |grep master |sed -e 's/nodes\///g')"
+  export OPENSHIFT_CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
+  export OPENSHIFT_MANAGEMENT_ADMIN_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
 
-  sshpass -p${ROOT_PASSWORD} \
-                ansible-playbook \
-                  --user root \
-                  --connection=ssh \
-                  --ask-pass \
-                  --extra-vars \
-                    "provider_name=${NAME_PREFIX} \
-                    management_admin_token=${OC_TOKEN} \
-                    ca_crt=\"${CA_CRT}\" \
-                    ocp_master_host=${MASTER_HOSTNAME} \
-                    cfme_route=${CFME_ROUTE} \
-                    metrics_role=${METRICS_ROLE} \
-                    hawkular_route=${HAWKULAR_ROUTE} \
-                    prometheus_metrics_route=${PROMETHEUS_METRICS_ROUTE} \
-                    prometheus_alerts_route=${PROMETHEUS_ALERTS_ROUTE}" \
-                ${WORKSPACE}/miqplaybook.yml
+  ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${WORKSPACE}/miqplaybook.yml
   if [ $? -ne '0' ]; then
     RETRCODE=1
   fi
