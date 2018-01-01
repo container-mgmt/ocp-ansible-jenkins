@@ -78,7 +78,7 @@ fi
 #
 # Build inventory Variables for substitution
 #
-MASTER_HOSTNAME="${NAME_PREFIX}-master01.${MASTER_IP}.${WILDCARD_DNS_SERVICE}"
+MASTER_HOSTNAME="${NAME_PREFIX}-master001.${MASTER_IP}.${WILDCARD_DNS_SERVICE}"
 
 # Create inventory
 set -e
