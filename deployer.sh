@@ -6,17 +6,17 @@ OPENSHIFT_ANSIBLE_PATH="${BUILD_DIR}/openshift-ansible"
 ENVIRONMENT_FILE="${BUILD_DIR}/environment"
 ID_FILE="${WORKSPACE}/../id_rsa"
 REDHAT_IT_ROOT_CA_PATH="/etc/pki/ca-trust/source/anchors/RH-IT-Root-CA.crt"
-NAME_PREFIX=${NAME_PREFIX:ocp}
+NAME_PREFIX="${NAME_PREFIX:-ocp}"
 EXT_NFS_BASE_EXPORT_PATH_NORMALIZED=$(echo ${EXT_NFS_BASE_EXPORT_PATH} | sed 's./.\\/.g')
 CLUSTER_EXT_NFS_BASE_EXPORT_PATH="${EXT_NFS_BASE_EXPORT_PATH_NORMALIZED}\/${NAME_PREFIX}"
 CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED="${EXT_NFS_BASE_EXPORT_PATH}/${NAME_PREFIX}"
 TMP_MNT_PATH="${BUILD_DIR}/mnt"
 TMP_RESOURCE_DIR="${BUILD_DIR}/${NAME_PREFIX}_PVs"
 PREDEFINED_PVS_TO_CREATE="registry metrics logging logging-ops prometheus prometheus-alertmanager prometheus-alertbuffer miq-app miq-db"
-MANAGEIQ_IMAGE=${MANAGEIQ_IMAGE:-docker.io/containermgmt/manageiq-pods}
+MANAGEIQ_IMAGE="${MANAGEIQ_IMAGE:-docker.io/containermgmt/manageiq-pods}"
 SSH_ARGS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=600s"
-WILDCARD_DNS_SERVICE=${WILDCARD_DNS_SERVICE:-xip.io}
-STORAGE_TYPE=${STORAGE_TYPE:-external_nfs}
+WILDCARD_DNS_SERVICE="${WILDCARD_DNS_SERVICE:-xip.io}"
+STORAGE_TYPE="${STORAGE_TYPE:-external_nfs}"
 
 ansible --version
 
