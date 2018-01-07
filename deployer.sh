@@ -13,9 +13,9 @@ CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED="${EXT_NFS_BASE_EXPORT_PATH}/${NAME_P
 TMP_MNT_PATH="${BUILD_DIR}/mnt"
 TMP_RESOURCE_DIR="${BUILD_DIR}/${NAME_PREFIX}_PVs"
 PREDEFINED_PVS_TO_CREATE="registry metrics logging logging-ops prometheus prometheus-alertmanager prometheus-alertbuffer miq-app miq-db"
-MANAGEIQ_IMAGE=${MANAGEIQ_IMAGE:docker.io/containermgmt/manageiq-pods}
+MANAGEIQ_IMAGE=${MANAGEIQ_IMAGE:-docker.io/containermgmt/manageiq-pods}
 SSH_ARGS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=600s"
-WILDCARD_DNS_SERVICE=${WILDCARD_DNS_SERVICE:xip.io}
+WILDCARD_DNS_SERVICE=${WILDCARD_DNS_SERVICE:-xip.io}
 STORAGE_TYPE=${STORAGE_TYPE:-external_nfs}
 
 ansible --version
