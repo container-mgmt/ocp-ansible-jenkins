@@ -222,6 +222,11 @@ def main():
                         help='sleep time between iterations iterations')
 
     args = parser.parse_args()
+
+    if not args.name_prefix.strip():
+        print("Prefix can't be empty", file=sys.stderr)
+        sys.exit(-1)
+
     if args.ovirt_pass not in os.environ:
         print("No env var named '{env_var}' was found, \
                see option '--ovirt-pass'".format(env_var=args.ovirt_pass), file=sys.stderr)
