@@ -20,7 +20,6 @@
 from __future__ import print_function, unicode_literals
 import os
 import sys
-import traceback
 import argparse
 import logging
 import time
@@ -37,6 +36,7 @@ connection = None
 system_service = None
 vms_service = None
 
+
 def str2bool(val):
     """ Convert str argument to bool """
     if val.lower() in ('', 'yes', 'true', 't', 'y', '1'):
@@ -47,9 +47,7 @@ def str2bool(val):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-
 logging.basicConfig(level=logging.DEBUG, filename="ocp-on-rhev-deployer.log")
-
 
 
 def do_work(args):
@@ -77,7 +75,7 @@ def do_work(args):
         for idx in range(1, args.nodes+1):
             cluster_nodes.append(vm_name_template.format(name_prefix=args.name_prefix,
                                                          node_type="compute", i=idx))
-        print (cluster_nodes)
+        print(cluster_nodes)
         if args.info:
             get_vms_info(cluster_nodes, args)
         else:
@@ -85,8 +83,6 @@ def do_work(args):
     finally:
         if connection:
             connection.close()
-
-
 
 
 def get_vms_info(cluster_nodes, args):
@@ -97,7 +93,7 @@ def get_vms_info(cluster_nodes, args):
     nodes = []
     for node in vm_iterator(cluster_nodes):
         node_name = node.get().name
-        print (node_name)
+        print(node_name)
         for dev in node.reported_devices_service().list():
             if dev.name == 'eth0':
                 for ip in dev.ips:
@@ -105,7 +101,7 @@ def get_vms_info(cluster_nodes, args):
                         vm_dict[node_name] = ip.address
 
     if len(vm_dict) != len(cluster_nodes):
-        print (" PROBLEM - not all VMs were detected on the system ")
+        print(" PROBLEM - not all VMs were detected on the system ")
         sys.exit(-1)
     vm_names = vm_dict.keys()
     vm_names.sort()
@@ -116,12 +112,11 @@ def get_vms_info(cluster_nodes, args):
             infra_nodes.append(vm_dict[vm_name])
         else:
             nodes.append(vm_dict[vm_name])
-    print ("#################################################################")
-    print ("masters: " + " ".join(masters))
-    print ("infra  : " + " ".join(infra_nodes))
-    print ("nodes  : " + " ".join(nodes))
-    print ("#################################################################")
-
+    print("#################################################################")
+    print("masters: " + " ".join(masters))
+    print("infra  : " + " ".join(infra_nodes))
+    print("nodes  : " + " ".join(nodes))
+    print("#################################################################")
 
 
 def vm_iterator(cluster_nodes):
@@ -142,11 +137,11 @@ def create_vms(cluster_nodes, args):
     """ creates the vms in cluster_nodes list, and skipps if they exist """
     vm_dict = {}
     for node in cluster_nodes:
-        print ("node=%s"%(node))
-        tmp = vms_service.list(search=constructSearchByNameQuery(node))
+        print("node=%s" % (node))
+        tmp = vms_service.list(search=construct_search_by_name_query(node))
         if len(tmp) == 1:
             vm_dict[node] = tmp[0].id
-            print ("VM %s was found ... skipping creation"%(node))
+            print("VM %s was found ... skipping creation" % (node))
         else:
             vm = vms_service.add(types.Vm(name=node,
                                           cluster=types.Cluster(name=args.ovirt_cluster),
@@ -157,7 +152,7 @@ def create_vms(cluster_nodes, args):
             while counter < args.num_of_iterations:
                 time.sleep(args.sleep_between_iterations)
                 vm = vm_service.get()
-                print ("vm.status = %s" % (vm.status))
+                print("vm.status = %s" % (vm.status))
                 if vm.status == types.VmStatus.DOWN:
                     break
             pub_sshkey = os.environ[args.pub_sshkey]
@@ -167,8 +162,8 @@ def create_vms(cluster_nodes, args):
             while counter < args.num_of_iterations:
                 time.sleep(args.sleep_between_iterations)
                 vm = vm_service.get()
-                print ("vm.status = %s, vm.fqdn= '%s'" % (vm.status, vm.fqdn))
-                if vm.status == types.VmStatus.UP  or counter > 20:
+                print("vm.status = %s, vm.fqdn= '%s'" % (vm.status, vm.fqdn))
+                if vm.status == types.VmStatus.UP or counter > 20:
                     break
             time.sleep(args.sleep_between_iterations)
 
@@ -211,16 +206,17 @@ def main():
                         help='sleep time between iterations iterations')
 
     args = parser.parse_args()
-    if not os.environ.has_key(args.ovirt_pass):
-        print ("No env var named '{env_var}' was found, \
+    if args.ovirt_pass not in os.environ:
+        print("No env var named '{env_var}' was found, \
                see option '--ovirt-pass'".format(env_var=args.ovirt_pass))
         sys.exit(-1)
-    if not os.environ.has_key(args.pub_sshkey):
-        print ("No env var named '{env_var}' was foundi, \
+    if args.pub_sshkey not in os.environ:
+        print("No env var named '{env_var}' was found, \
                see option --pub-sshkey".format(env_var=args.pub_sshkey))
         sys.exit(-1)
 
     do_work(args)
+
 
 if __name__ == '__main__':
     main()
