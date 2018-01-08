@@ -164,6 +164,7 @@ def create_vms(cluster_nodes, args):
                 print("vm.status = %s" % (vm.status), file=sys.stderr)
                 if vm.status == types.VmStatus.DOWN:
                     break
+                counter += 1
             pub_sshkey = os.environ[args.pub_sshkey]
             vm_service.start(use_cloud_init=True,
                              vm=types.Vm(initialization=types.Initialization(authorized_ssh_keys=pub_sshkey)))
@@ -172,13 +173,26 @@ def create_vms(cluster_nodes, args):
                 time.sleep(args.sleep_between_iterations)
                 vm = vm_service.get()
                 print("vm.status = %s, vm.fqdn= '%s'" % (vm.status, vm.fqdn), file=sys.stderr)
-                if vm.status == types.VmStatus.UP or counter > 20:
+                if vm.status == types.VmStatus.UP:
                     break
+                counter += 1
+
             if vm.status != types.VmStatus.UP:
                 print("ERROR - VM {0} still not up after 20 retries".format(node), file=sys.stderr)
                 sys.exit(-1)
             else:
-                vm_dict[node] = find_vm_ip(vm_service)
+                ip = None
+                counter = 1
+                while counter < args.num_of_iterations:
+                    ip = find_vm_ip(vm_service)
+                    if ip is not None:
+                        break
+                    counter += 1
+                    msg = "waiting for ip... {0}/{1} attempts".format(counter, args.num_of_iterations)
+                    print(msg, file=sys.stderr)
+                    time.sleep(args.sleep_between_iterations)
+
+                vm_dict[node] = ip
             time.sleep(args.sleep_between_iterations)
 
     print_ips(vm_dict)
