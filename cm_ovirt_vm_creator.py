@@ -47,7 +47,7 @@ def str2bool(val):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-logging.basicConfig(level=logging.DEBUG, filename="ocp-on-rhev-deployer.log")
+logging.basicConfig(level=logging.DEBUG, filename="cm_ovirt_vm_creator.log")
 
 
 def do_work(args):
