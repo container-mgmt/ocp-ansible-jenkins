@@ -75,7 +75,7 @@ def do_work(args):
         for idx in range(1, args.nodes+1):
             cluster_nodes.append(vm_name_template.format(name_prefix=args.name_prefix,
                                                          node_type="compute", i=idx))
-        print(cluster_nodes)
+        print(cluster_nodes, file=sys.stderr)
         if args.info:
             get_vms_info(cluster_nodes, args)
         else:
@@ -88,34 +88,44 @@ def do_work(args):
 def get_vms_info(cluster_nodes, args):
     """ Gets the ips of all the vms in cluster_nodes list  """
     vm_dict = {}
+    for node in vm_iterator(cluster_nodes):
+        node_name = node.get().name
+        print(node_name, file=sys.stderr)
+        vm_dict[node_name] = find_vm_ip(node)
+
+    if len(vm_dict) != len(cluster_nodes):
+        print("PROBLEM - not all VMs were detected on the system", file=sys.stderr)
+        sys.exit(-1)
+
+    print_ips(vm_dict)
+
+
+def find_vm_ip(vm):
+    """ Find the IPv4 address of a given VM """
+    for dev in vm.reported_devices_service().list():
+        if dev.name == 'eth0':
+            for ip in dev.ips:
+                if ip.version == types.IpVersion.V4:
+                    return ip.address
+
+
+def print_ips(vm_dict):
+    """ Print IPs for VMs in a bash env var format """
     masters = []
     infra_nodes = []
     nodes = []
-    for node in vm_iterator(cluster_nodes):
-        node_name = node.get().name
-        print(node_name)
-        for dev in node.reported_devices_service().list():
-            if dev.name == 'eth0':
-                for ip in dev.ips:
-                    if ip.version == types.IpVersion.V4:
-                        vm_dict[node_name] = ip.address
-
-    if len(vm_dict) != len(cluster_nodes):
-        print(" PROBLEM - not all VMs were detected on the system ")
-        sys.exit(-1)
-    vm_names = vm_dict.keys()
-    vm_names.sort()
-    for vm_name in vm_names:
-        if vm_name.find("master") >= 0:
-            masters.append(vm_dict[vm_name])
-        elif vm_name.find("infra") >= 0:
-            infra_nodes.append(vm_dict[vm_name])
+    for vm_name, vm_ip in sorted(vm_dict.items()):
+        if "master" in vm_name:
+            masters.append(vm_ip)
+        elif "infra" in vm_name:
+            infra_nodes.append(vm_ip)
         else:
-            nodes.append(vm_dict[vm_name])
+            nodes.append(vm_ip)
+    print()
     print("#################################################################")
-    print("masters: " + " ".join(masters))
-    print("infra  : " + " ".join(infra_nodes))
-    print("nodes  : " + " ".join(nodes))
+    print('MASTER_IP="{0}"'.format(" ".join(masters)))
+    print('INFRA_IPS="{0}"'.format(" ".join(infra_nodes)))
+    print('NODE_IPS="{0}"'.format(" ".join(nodes)))
     print("#################################################################")
 
 
@@ -137,22 +147,21 @@ def create_vms(cluster_nodes, args):
     """ creates the vms in cluster_nodes list, and skipps if they exist """
     vm_dict = {}
     for node in cluster_nodes:
-        print("node=%s" % (node))
+        print("node=%s" % (node), file=sys.stderr)
         tmp = vms_service.list(search=construct_search_by_name_query(node))
         if len(tmp) == 1:
-            vm_dict[node] = tmp[0].id
-            print("VM %s was found ... skipping creation" % (node))
+            vm_dict[node] = find_vm_ip(vms_service.vm_service(tmp[0].id))
+            print("VM %s was found ... skipping creation" % (node), file=sys.stderr)
         else:
             vm = vms_service.add(types.Vm(name=node,
                                           cluster=types.Cluster(name=args.ovirt_cluster),
                                           template=types.Template(name=args.ovirt_template)))
-            vm_dict[node] = vm.id
             vm_service = vms_service.vm_service(vm.id)
             counter = 1
             while counter < args.num_of_iterations:
                 time.sleep(args.sleep_between_iterations)
                 vm = vm_service.get()
-                print("vm.status = %s" % (vm.status))
+                print("vm.status = %s" % (vm.status), file=sys.stderr)
                 if vm.status == types.VmStatus.DOWN:
                     break
             pub_sshkey = os.environ[args.pub_sshkey]
@@ -162,10 +171,17 @@ def create_vms(cluster_nodes, args):
             while counter < args.num_of_iterations:
                 time.sleep(args.sleep_between_iterations)
                 vm = vm_service.get()
-                print("vm.status = %s, vm.fqdn= '%s'" % (vm.status, vm.fqdn))
+                print("vm.status = %s, vm.fqdn= '%s'" % (vm.status, vm.fqdn), file=sys.stderr)
                 if vm.status == types.VmStatus.UP or counter > 20:
                     break
+            if vm.status != types.VmStatus.UP:
+                print("ERROR - VM {0} still not up after 20 retries".format(node), file=sys.stderr)
+                sys.exit(-1)
+            else:
+                vm_dict[node] = find_vm_ip(vm_service)
             time.sleep(args.sleep_between_iterations)
+
+    print_ips(vm_dict)
 
 
 def main():
@@ -208,11 +224,11 @@ def main():
     args = parser.parse_args()
     if args.ovirt_pass not in os.environ:
         print("No env var named '{env_var}' was found, \
-               see option '--ovirt-pass'".format(env_var=args.ovirt_pass))
+               see option '--ovirt-pass'".format(env_var=args.ovirt_pass), file=sys.stderr)
         sys.exit(-1)
     if args.pub_sshkey not in os.environ:
         print("No env var named '{env_var}' was found, \
-               see option --pub-sshkey".format(env_var=args.pub_sshkey))
+               see option --pub-sshkey".format(env_var=args.pub_sshkey), file=sys.stderr)
         sys.exit(-1)
 
     do_work(args)
