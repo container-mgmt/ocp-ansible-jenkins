@@ -195,7 +195,7 @@ def main():
                         help='Used to obtain all the VM ips')
     parser.add_argument('--masters', const=1, nargs='?', type=int, default=1,
                         help='Number of master nodes to create in the cluster')
-    parser.add_argument('--nodes', const=3, nargs='?', type=int, default=3,
+    parser.add_argument('--nodes', const=2, nargs='?', type=int, default=2,
                         help='Number of compute nodes to create in the cluster')
     parser.add_argument('--infra-nodes', const=2, nargs='?', type=int, default=2,
                         help='Number of infra nodes to create in the cluster')
