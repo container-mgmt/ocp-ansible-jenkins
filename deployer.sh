@@ -118,6 +118,50 @@ echo "# Using inventory: "
 cat ${INVENTORY_PATH}
 echo "#######################################################################"
 
+
+if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
+    # We're installing Prometheus, this means we have to connect to all
+    # nodes on the cluster to make sure the iscsi initator name is set correctly
+    # and to collect the initator names so we can create the iscsi LUN.
+    echo "Setting initator names..."
+
+    INAME="iqn.1994-05.com.redhat:${NAME_PREFIX}-master001"
+    INITIATORS="${INAME}"
+    sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${MASTER_HOSTNAME}" "echo InitiatorName=${INAME} > /etc/iscsi/initiatorname.iscsi; systemctl restart iscsi.service"
+
+    NODE_NUMBER=0;
+    for IP in ${INFRA_IPS}; do
+        printf -v NODE_NUMBER_PADDED "%03d" ${NODE_NUMBER}
+        INAME="iqn.1994-05.com.redhat:${NAME_PREFIX}-infra${NODE_NUMBER_PADDED}"
+        INITIATORS="${INITIATORS} ${INAME}"
+        sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${IP}" "echo InitiatorName=${INAME} > /etc/iscsi/initiatorname.iscsi; systemctl restart iscsi.service"
+        let "NODE_NUMBER++"
+    done
+
+    NODE_NUMBER=0;
+    for IP in ${COMPUTE_IPS}; do
+        printf -v NODE_NUMBER_PADDED "%03d" ${NODE_NUMBER}
+        INAME="iqn.1994-05.com.redhat:${NAME_PREFIX}-compute${NODE_NUMBER_PADDED}"
+        INITIATORS="${INITIATORS} ${INAME}"
+        sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${IP}" "echo InitiatorName=${INAME} > /etc/iscsi/initiatorname.iscsi; systemctl restart iscsi.service"
+        let "NODE_NUMBER++"
+    done
+
+    echo "Initiators: ${INITIATORS}"
+    echo
+    echo "Creating iscsi LUN..."
+
+    ISCSI_LUN_ID=$(python "${WORKSPACE}/lun_manager.py" --server="${NETAPP_SERVER}" \
+                                                        --user="${NETAPP_USER}" \
+                                                        --name="cm-${NAME_PREFIX}" \
+                                                        --volume="${NETAPP_VOLUME}" \
+                                                        --vserver="${NETAPP_VSERVER}" \
+                                                        --size="15GB" \
+                                                        --initiators="${INITIATORS}")
+
+    export ISCSI_LUN_ID
+fi
+
 RETRCODE=0
 
 sshpass -p${ROOT_PASSWORD} \
@@ -133,16 +177,26 @@ SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
 
 if [ $? -ne '0' ]; then
   RETRCODE=1
-elif [ "${STORAGE_TYPE}" == "external_nfs" ]; then
-      echo "Creating PVs..."
-      sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
+else
+    if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
+        echo "Creating iSCSI pv (for Prometheus)..."
+        export ISCSI_TARGET_PORTAL
+        export ISCSI_IQN
+        envsubst < "${WORKSPACE}/iscsi-pv-template.yaml" > iscsi_pv.yaml
+        sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz iscsi_pv.yaml root@${MASTER_HOSTNAME}:
+        ${SSH_COMMAND} oc create -f iscsi_pv.yaml
+    fi
+    if [ "${STORAGE_TYPE}" == "external_nfs" ]; then
+          echo "Creating PVs..."
+          sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
 
-      PV_YAML_DIR=`basename ${TMP_RESOURCE_DIR}`
+          PV_YAML_DIR=`basename ${TMP_RESOURCE_DIR}`
 
-      for PV in `seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS}`
-      do
-        ${SSH_COMMAND} oc create -f ${PV_YAML_DIR}/${PV}
-      done
+          for PV in `seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS}`
+          do
+            ${SSH_COMMAND} oc create -f ${PV_YAML_DIR}/${PV}
+          done
+    fi
 fi
 
 if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "true" ]; then
