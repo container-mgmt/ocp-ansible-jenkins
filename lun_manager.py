@@ -21,9 +21,13 @@ from __future__ import unicode_literals, print_function
 import argparse
 import paramiko
 import sys
+import ovirtsdk4
+import re
+import os
 from paramiko import SSHClient
 
 DEFAULT_OVIRT_PASS_ENV_VAR = "OV_PASS"
+cluster_pattern = re.compile("^(.*)-(?:infra|compute|master)[0-9]+")
 
 
 def exec_command(client, command):
@@ -105,6 +109,59 @@ def delete_igroup(client, vserver, igroup_name):
         raise Exception("igroup deletion failed!")
 
 
+def get_luns(client, vserver):
+    """ Get a list of LUNs from the NetApp server """
+    out, err = exec_command(client, "lun show -vserver {0}".format(vserver))
+    if "Error" in out:
+        raise Exception("Can't get luns: {0}".format(out))
+    ret = []
+    for line in out.splitlines():
+        splitted = line.strip().split()
+        if len(splitted) < 2:
+            continue
+        if splitted[0] != vserver:
+            # If the line doesn't start with the vserver name, it's probably
+            # a warning or the header
+            continue
+        path = splitted[1].split('/')
+        ret.append({"volume": path[2], "name": path[3]})
+    return ret
+
+
+def get_vm_clusters(ovirt_url, ovirt_user, ovirt_ca, ovirt_pass):
+    """ Get all openshift clusters on the ovirt """
+    ret = set()
+    try:
+        connection = ovirtsdk4.Connection(url=ovirt_url, username=ovirt_user,
+                                          password=ovirt_pass, ca_file=ovirt_ca)
+        vms_service = connection.system_service().vms_service()
+        for vm in vms_service.list():
+            match = cluster_pattern.match(vm.name)
+            if match is not None:
+                ret.add(match.group(1))
+    finally:
+        if connection:
+            connection.close()
+    return ret
+
+
+def cleanup(client, vserver, ovirt_url, ovirt_user, ovirt_ca, ovirt_pass):
+    clusters = get_vm_clusters(ovirt_url, ovirt_user, ovirt_ca, ovirt_pass)
+    print("Found {0} clusters".format(len(clusters)))
+    to_delete = []
+    for lun in get_luns(client, vserver):
+        # split to remove lun prfix from the search
+        if lun['name'].split('-', 1)[1] not in clusters:
+            to_delete.append(lun)
+
+    print("Will delete {0} LUNs".format(len(to_delete)))
+    for lun in to_delete:
+        print("Deleting lun {0}".format(lun['name']))
+        delete_lun_mapping(client, vserver, lun['volume'], lun['name'], lun['name'])
+        delete_igroup(client, vserver, lun['name'])
+        delete_lun(client, lun['volume'], vserver, lun['name'])
+
+
 def main():
     parser = argparse.ArgumentParser(description='Manage LUNs, mappings and igroups on a NetApp cluster')
 
@@ -136,9 +193,11 @@ def main():
     elif args.action == "delete":
         if not args.name or not args.volume or not args.vserver:
             raise SystemExit("name, volume and vserver are required for delete")
-    elif args.action == "cleanup":
+    elif args.action == "clean":
         if not args.ovirt_url or not args.ovirt_user or not args.ovirt_ca_pem_file:
             raise SystemExit("missing ovirt arguments")
+        if args.ovirt_pass not in os.environ:
+            raise SystemExit("missing ovirt password env var")
 
     client = SSHClient()
     client.load_system_host_keys()
@@ -158,8 +217,9 @@ def main():
             delete_lun_mapping(client, args.vserver, args.volume, args.name, args.name)
             delete_igroup(client, args.vserver, args.name)
             delete_lun(client, args.volume, args.vserver, args.name)
-        elif args.action == "cleanup":
-            raise NotImplementedError("Automatic cleanup not yet implemented")
+        elif args.action == "clean":
+            cleanup(client, args.vserver, args.ovirt_url, args.ovirt_user,
+                    args.ovirt_ca_pem_file, os.environ[args.ovirt_pass])
 
         print("Done!", file=sys.stderr)
     finally:
