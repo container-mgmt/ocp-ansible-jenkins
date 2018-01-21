@@ -150,7 +150,7 @@ def create_vms(cluster_nodes, args):
         print("node=%s" % (node), file=sys.stderr)
         tmp = vms_service.list(search=construct_search_by_name_query(node))
         if len(tmp) == 1:
-            vm_dict[node] = find_vm_ip(vms_service.vm_service(tmp[0].id))
+            vm_dict[node] = vms_service.vm_service(tmp[0].id)
             print("VM %s was found ... skipping creation" % (node), file=sys.stderr)
         else:
             vm = vms_service.add(types.Vm(name=node,
@@ -178,24 +178,33 @@ def create_vms(cluster_nodes, args):
                 counter += 1
 
             if vm.status != types.VmStatus.UP:
-                print("ERROR - VM {0} still not up after 20 retries".format(node), file=sys.stderr)
+                print("ERROR - VM {0} still not up after {1} retries".format(node, args.num_of_iterations), file=sys.stderr)
                 sys.exit(-1)
             else:
-                ip = None
-                counter = 1
-                while counter < args.num_of_iterations:
-                    ip = find_vm_ip(vm_service)
-                    if ip is not None:
-                        break
-                    counter += 1
-                    msg = "waiting for ip... {0}/{1} attempts".format(counter, args.num_of_iterations)
-                    print(msg, file=sys.stderr)
-                    time.sleep(args.sleep_between_iterations)
-
-                vm_dict[node] = ip
+                vm_dict[node] = vm_service
             time.sleep(args.sleep_between_iterations)
 
-    print_ips(vm_dict)
+    ips_dict = {}
+    for node, vm_service in vm_dict.items():
+        ip = None
+        counter = 1
+        while counter < args.num_of_iterations:
+            ip = find_vm_ip(vm_service)
+            if ip is not None:
+                break
+            counter += 1
+            msg = "{0} waiting for ip... {1}/{2} attempts".format(node,
+                                                                  counter,
+                                                                  args.num_of_iterations)
+            print(msg, file=sys.stderr)
+            time.sleep(args.sleep_between_iterations)
+
+        if ip is None:
+            print("ERROR - Node {0} still has no IP after {1} retries".format(node, args.num_of_iterations), file=sys.stderr)
+            sys.exit(-1)
+        ips_dict[node] = ip
+
+    print_ips(ips_dict)
 
 
 def main():
@@ -230,7 +239,7 @@ def main():
     parser.add_argument('--pub-sshkey', const=DEFAULT_OVIRT_PUB_SSHKEY_ENV_VAR, nargs='?',
                         type=str, default=DEFAULT_OVIRT_PUB_SSHKEY_ENV_VAR,
                         help='Env variables to use to get the pub ssh key to use with cloud init')
-    parser.add_argument('--num-of-iterations', const=20, nargs='?', type=int, default=20,
+    parser.add_argument('--num-of-iterations', const=30, nargs='?', type=int, default=20,
                         help='Number of iterations to wait for long VM operations (create & run)')
     parser.add_argument('--sleep-between-iterations', const=5, nargs='?', type=int, default=5,
                         help='sleep time between iterations iterations')
