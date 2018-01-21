@@ -163,6 +163,7 @@ if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
 fi
 
 RETRCODE=0
+SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
 
 sshpass -p${ROOT_PASSWORD} \
                 ansible-playbook \
@@ -172,8 +173,6 @@ sshpass -p${ROOT_PASSWORD} \
                   --private-key=${ID_FILE} \
                   --inventory=${INVENTORY_PATH} \
                   ${OPENSHIFT_ANSIBLE_PATH}/playbooks/byo/config.yml
-
-SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
 
 if [ $? -ne '0' ]; then
   RETRCODE=1
