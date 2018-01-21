@@ -196,30 +196,30 @@ else
             ${SSH_COMMAND} oc create -f ${PV_YAML_DIR}/${PV}
           done
     fi
-fi
 
-if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "true" ]; then
-  echo "Checking out Ansible 2.4..."
-  git clone https://github.com/ansible/ansible.git
-  pushd ansible
-  git checkout stable-2.4
-  source hacking/env-setup
-  popd
-  ansible --version
-  echo "Configuring OpenShift provider in ManageIQ..."
+    if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "true" ]; then
+      echo "Checking out Ansible 2.4..."
+      git clone https://github.com/ansible/ansible.git
+      pushd ansible
+      git checkout stable-2.4
+      source hacking/env-setup
+      popd
+      ansible --version
+      echo "Configuring OpenShift provider in ManageIQ..."
 
-  export OPENSHIFT_HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
-  export OPENSHIFT_PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
-  export OPENSHIFT_PROMETHEUS_METRICS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' metrics 2> /dev/null)"
-  export OPENSHIFT_CFME_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
-  export OPENSHIFT_MASTER_HOST="$(${SSH_COMMAND} oc get nodes -o name |grep master |sed -e 's/nodes\///g')"
-  export OPENSHIFT_CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
-  export OPENSHIFT_MANAGEMENT_ADMIN_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
+      export OPENSHIFT_HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
+      export OPENSHIFT_PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
+      export OPENSHIFT_PROMETHEUS_METRICS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' metrics 2> /dev/null)"
+      export OPENSHIFT_CFME_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
+      export OPENSHIFT_MASTER_HOST="$(${SSH_COMMAND} oc get nodes -o name |grep master |sed -e 's/nodes\///g')"
+      export OPENSHIFT_CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
+      export OPENSHIFT_MANAGEMENT_ADMIN_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
 
-  ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${WORKSPACE}/miqplaybook.yml
-  if [ $? -ne '0' ]; then
-    RETRCODE=1
-  fi
+      ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${WORKSPACE}/miqplaybook.yml
+      if [ $? -ne '0' ]; then
+        RETRCODE=1
+      fi
+    fi
 fi
 
 COUNTER=1
