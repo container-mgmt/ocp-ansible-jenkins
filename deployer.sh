@@ -12,7 +12,7 @@ CLUSTER_EXT_NFS_BASE_EXPORT_PATH="${EXT_NFS_BASE_EXPORT_PATH_NORMALIZED}\/${NAME
 CLUSTER_EXT_NFS_BASE_EXPORT_PATH_UNESCAPED="${EXT_NFS_BASE_EXPORT_PATH}/${NAME_PREFIX}"
 TMP_MNT_PATH="${BUILD_DIR}/mnt"
 TMP_RESOURCE_DIR="${BUILD_DIR}/${NAME_PREFIX}_PVs"
-PREDEFINED_PVS_TO_CREATE="registry metrics logging logging-ops prometheus prometheus-alertmanager prometheus-alertbuffer miq-app miq-db"
+PREDEFINED_PVS_TO_CREATE="registry metrics logging loggingops prometheus prometheus-alertmanager prometheus-alertbuffer miq-app miq-db"
 MANAGEIQ_IMAGE="${MANAGEIQ_IMAGE:-docker.io/containermgmt/manageiq-pods}"
 SSH_ARGS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=600s"
 WILDCARD_DNS_SERVICE="${WILDCARD_DNS_SERVICE:-xip.io}"
