@@ -28,10 +28,14 @@ from paramiko import SSHClient
 
 DEFAULT_OVIRT_PASS_ENV_VAR = "OV_PASS"
 cluster_pattern = re.compile("^(.*)-(?:infra|compute|master)[0-9]+")
+size_pattern = re.compile("^\d+(\.\d)?[kmg]?b$", re.I)
 
 
 def exec_command(client, command):
     """ execute a command on an ssh client, return the output streams """
+    if ';' in command:
+        # minimal effort to prevent shell injection
+        raise ValueError("Invalid character ';'")
     stdin, stdout, stderr = client.exec_command(command)
     out = stdout.read().strip()
     err = stderr.read().strip()
@@ -236,6 +240,8 @@ def main():
     if args.action == "create":
         if not args.name or not args.volume or not args.vserver or not args.size or not args.initiators:
             raise SystemExit("name, volume, vserver, size and initiators are required for create")
+        if not size_pattern.match(args.size):
+            raise SystemExit("Invalid size {0} specified".format(args.size))
     elif args.action == "delete":
         if not args.name or not args.volume or not args.vserver:
             raise SystemExit("name, volume and vserver are required for delete")

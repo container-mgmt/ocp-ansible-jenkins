@@ -161,7 +161,7 @@ if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
                                                         --name="cm-${NAME_PREFIX}" \
                                                         --volume="${NETAPP_VOLUME}" \
                                                         --vserver="${NETAPP_VSERVER}" \
-                                                        --size="15GB" \
+                                                        --size="${ISCSI_PV_SIZE}" \
                                                         --initiators="${INITIATORS}")
     set +e
     export ISCSI_LUN_ID
