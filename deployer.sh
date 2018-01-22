@@ -124,33 +124,38 @@ if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
     # nodes on the cluster to make sure the iscsi initator name is set correctly
     # and to collect the initator names so we can create the iscsi LUN.
     echo "Setting initator names..."
+    INITATORS=""
 
-    INAME="iqn.1994-05.com.redhat:${NAME_PREFIX}-master001"
-    INITIATORS="${INAME}"
-    sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${MASTER_HOSTNAME}" "echo InitiatorName=${INAME} > /etc/iscsi/initiatorname.iscsi; systemctl restart iscsi.service"
+    function set_iname() {
+        NODE_TYPE=${1}
+        NODE_NUMBER=${2}
+        IP=${3}
 
-    NODE_NUMBER=0;
-    for IP in ${INFRA_IPS}; do
-        printf -v NODE_NUMBER_PADDED "%03d" ${NODE_NUMBER}
-        INAME="iqn.1994-05.com.redhat:${NAME_PREFIX}-infra${NODE_NUMBER_PADDED}"
-        INITIATORS="${INITIATORS} ${INAME}"
+        printf -v NODE_NUMBER_PADDED "%03d" "${NODE_NUMBER}"
+        INAME="iqn.1994-05.com.redhat:${NAME_PREFIX}-${NODE_TYPE}${NODE_NUMBER_PADDED}"
         sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${IP}" "echo InitiatorName=${INAME} > /etc/iscsi/initiatorname.iscsi; systemctl restart iscsi.service"
-        let "NODE_NUMBER++"
+        INITIATORS="${INITIATORS} ${INAME}"
+    }
+
+    set_iname master 1 ${MASTER_HOSTNAME}
+
+    NODE_NUMBER=1;
+    for IP in ${INFRA_IPS}; do
+        set_iname infra ${NODE_NUMBER} "${IP}"
+        NODE_NUMBER=$((NODE_NUMBER+1))
     done
 
-    NODE_NUMBER=0;
+    NODE_NUMBER=1;
     for IP in ${COMPUTE_IPS}; do
-        printf -v NODE_NUMBER_PADDED "%03d" ${NODE_NUMBER}
-        INAME="iqn.1994-05.com.redhat:${NAME_PREFIX}-compute${NODE_NUMBER_PADDED}"
-        INITIATORS="${INITIATORS} ${INAME}"
-        sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${IP}" "echo InitiatorName=${INAME} > /etc/iscsi/initiatorname.iscsi; systemctl restart iscsi.service"
-        let "NODE_NUMBER++"
+        set_iname compute ${NODE_NUMBER} "${IP}"
+        NODE_NUMBER=$((NODE_NUMBER+1))
     done
 
     echo "Initiators: ${INITIATORS}"
     echo
     echo "Creating iscsi LUN..."
 
+    set -e
     ISCSI_LUN_ID=$(python "${WORKSPACE}/lun_manager.py" --server="${NETAPP_SERVER}" \
                                                         --user="${NETAPP_USER}" \
                                                         --name="cm-${NAME_PREFIX}" \
@@ -158,7 +163,7 @@ if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
                                                         --vserver="${NETAPP_VSERVER}" \
                                                         --size="15GB" \
                                                         --initiators="${INITIATORS}")
-
+    set +e
     export ISCSI_LUN_ID
 fi
 
@@ -189,9 +194,9 @@ else
           echo "Creating PVs..."
           sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
 
-          PV_YAML_DIR=`basename ${TMP_RESOURCE_DIR}`
+          PV_YAML_DIR=$(basename ${TMP_RESOURCE_DIR})
 
-          for PV in `seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS}`
+          for PV in $(seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS})
           do
             ${SSH_COMMAND} oc create -f ${PV_YAML_DIR}/${PV}
           done
