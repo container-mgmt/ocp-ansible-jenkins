@@ -60,6 +60,49 @@ def create_igroup(client, vserver, igroup_name, initator_list):
         raise Exception("igroup creation failed!")
 
 
+def verify_igroup(client, vserver, igroup_name, desired_initiators):
+    """ Verify an igroup has all desired initiators and no unknown ones """
+    out, err = exec_command(client, "igroup show {0}".format(igroup_name))
+    # Parse initiators list
+    found_start = False
+    current_initiators = ""
+    for line in out.splitlines():
+        splitted = line.strip().split()
+        if len(splitted) == 0:
+            break
+        if splitted[0] == "vserver-rhev":
+            found_start = True
+        if found_start:
+            current_initiators += splitted[-1]
+    current_initiators = set(current_initiators.split(','))
+    desired_initiators = set(desired_initiators)
+
+    missing = desired_initiators - current_initiators
+    unknown = current_initiators - desired_initiators
+
+    if current_initiators == desired_initiators:
+        # sets are equal, initator list okay
+        return True
+
+    if len(unknown) > 0:
+        # If we have initiators we don't recognize, this LUN might belong to another cluster
+        # the safest thing to do in this case is to refuse to continue.
+        print("Unkown initiators in igroup: {0}".format(unknown), file=sys.stderr)
+        print("Manual intervention required to continue", file=sys.stderr)
+        print("Expected: {0}".format(desired_initiators), file=sys.stderr)
+        raise Exception("Unkown initiators in igroup")
+
+    if len(missing) > 0:
+        print("Missing initiators: {0}".format(missing), file=sys.stderr)
+        # add missing initiators
+        command = "igroup add -vserver {0} -igroup {1} -initiator {2}"
+        command = command.format(vserver, igroup_name, ", ".join(missing))
+        out, err = exec_command(client, command)
+        if out or err:
+            raise Exception("failed adding initiators to the igroup!")
+        return True
+
+
 def _mapping(mode, client, vserver, volume, lun_name, igroup_name):
     if mode not in ["delete", "create"]:
         raise ValueError(mode)
@@ -71,19 +114,22 @@ def _mapping(mode, client, vserver, volume, lun_name, igroup_name):
         raise Exception("mapping {0} failed".format(mode))
 
 
-def map_lun(client, vserver, volume, lun_name, igroup_name):
-    """ Map LUN to igroup """
-    _mapping("create", client, vserver, volume, lun_name, igroup_name)
-
-    # Find the lun ID (useful for the PV file)
+def find_lun_id(client, lun_name):
+    """ Find the lun ID (useful for the PV file) """
     out, err = exec_command(client, "mapping show")
     for line in out.splitlines():
         splitted = line.split()
         if splitted[2] == lun_name:
-            print(splitted[3])
-            return
+            return splitted[3]
 
     raise Exception("Could not find LUN ID number")
+
+
+def map_lun(client, vserver, volume, lun_name, igroup_name):
+    """ Map LUN to igroup """
+    _mapping("create", client, vserver, volume, lun_name, igroup_name)
+    # print the LUN id so the deployer can put it in the PV file
+    print(find_lun_id(client, lun_name))
 
 
 def delete_lun_mapping(client, vserver, volume, lun_name, igroup_name):
@@ -189,7 +235,7 @@ def main():
     args = parser.parse_args()
     if args.action == "create":
         if not args.name or not args.volume or not args.vserver or not args.size or not args.initiators:
-            raise SystemExit("name, volume, vserver, size and initators are required for create")
+            raise SystemExit("name, volume, vserver, size and initiators are required for create")
     elif args.action == "delete":
         if not args.name or not args.volume or not args.vserver:
             raise SystemExit("name, volume and vserver are required for delete")
@@ -209,9 +255,27 @@ def main():
 
         if args.action == "create":
             # Creating a new LUN
-            create_lun(client, args.volume, args.vserver, args.name, args.size)
-            create_igroup(client, args.vserver, args.name, args.initiators.split())
-            map_lun(client, args.vserver, args.volume, args.name, args.name)
+            # First, check if it already exists:
+            already_exists = False
+            for lun in get_luns(client, args.vserver):
+                if lun['name'] == args.name:
+                    already_exists = True
+                    break
+            if not already_exists:
+                # LUN doesn't exist, create it and map it
+                create_lun(client, args.volume, args.vserver, args.name, args.size)
+                create_igroup(client, args.vserver, args.name, args.initiators.split())
+                map_lun(client, args.vserver, args.volume, args.name, args.name)
+            else:
+                print("LUN alerady exists, checking igroup", file=sys.stderr)
+                # If the lun exists, we need to verify the igroup it's assigned to
+                # has all requested initiators.
+                # If it's missing initiators, that means we need to add them
+                # If it has initiators that don't belong, that means it might
+                # belong to another cluster, and that'll be an error
+                verify_igroup(client, args.vserver, args.name, args.initiators.split())
+                print(find_lun_id(client, args.name))
+
         elif args.action == "delete":
             # Deleting a LUN
             delete_lun_mapping(client, args.vserver, args.volume, args.name, args.name)
