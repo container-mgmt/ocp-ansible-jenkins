@@ -118,7 +118,57 @@ echo "# Using inventory: "
 cat ${INVENTORY_PATH}
 echo "#######################################################################"
 
+
+if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
+    # We're installing Prometheus, this means we have to connect to all
+    # nodes on the cluster to make sure the iscsi initator name is set correctly
+    # and to collect the initator names so we can create the iscsi LUN.
+    echo "Setting initator names..."
+    INITATORS=""
+
+    function set_iname() {
+        NODE_TYPE=${1}
+        NODE_NUMBER=${2}
+        IP=${3}
+
+        printf -v NODE_NUMBER_PADDED "%03d" "${NODE_NUMBER}"
+        INAME="iqn.1994-05.com.redhat:${NAME_PREFIX}-${NODE_TYPE}${NODE_NUMBER_PADDED}"
+        sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${IP}" "echo InitiatorName=${INAME} > /etc/iscsi/initiatorname.iscsi; systemctl restart iscsi.service"
+        INITIATORS="${INITIATORS} ${INAME}"
+    }
+
+    set_iname master 1 ${MASTER_HOSTNAME}
+
+    NODE_NUMBER=1;
+    for IP in ${INFRA_IPS}; do
+        set_iname infra ${NODE_NUMBER} "${IP}"
+        NODE_NUMBER=$((NODE_NUMBER+1))
+    done
+
+    NODE_NUMBER=1;
+    for IP in ${COMPUTE_IPS}; do
+        set_iname compute ${NODE_NUMBER} "${IP}"
+        NODE_NUMBER=$((NODE_NUMBER+1))
+    done
+
+    echo "Initiators: ${INITIATORS}"
+    echo
+    echo "Creating iscsi LUN..."
+
+    set -e
+    ISCSI_LUN_ID=$(python "${WORKSPACE}/lun_manager.py" --server="${NETAPP_SERVER}" \
+                                                        --user="${NETAPP_USER}" \
+                                                        --name="cm-${NAME_PREFIX}" \
+                                                        --volume="${NETAPP_VOLUME}" \
+                                                        --vserver="${NETAPP_VSERVER}" \
+                                                        --size="${ISCSI_PV_SIZE}" \
+                                                        --initiators="${INITIATORS}")
+    set +e
+    export ISCSI_LUN_ID
+fi
+
 RETRCODE=0
+SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
 
 sshpass -p${ROOT_PASSWORD} \
                 ansible-playbook \
@@ -129,44 +179,52 @@ sshpass -p${ROOT_PASSWORD} \
                   --inventory=${INVENTORY_PATH} \
                   ${OPENSHIFT_ANSIBLE_PATH}/playbooks/byo/config.yml
 
-SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
-
 if [ $? -ne '0' ]; then
   RETRCODE=1
-elif [ "${STORAGE_TYPE}" == "external_nfs" ]; then
-      echo "Creating PVs..."
-      sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
+else
+    if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
+        echo "Creating iSCSI pv (for Prometheus)..."
+        export ISCSI_TARGET_PORTAL
+        export ISCSI_IQN
+        envsubst < "${WORKSPACE}/iscsi-pv-template.yaml" > iscsi_pv.yaml
+        sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz iscsi_pv.yaml root@${MASTER_HOSTNAME}:
+        ${SSH_COMMAND} oc create -f iscsi_pv.yaml
+    fi
+    if [ "${STORAGE_TYPE}" == "external_nfs" ]; then
+          echo "Creating PVs..."
+          sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
 
-      PV_YAML_DIR=`basename ${TMP_RESOURCE_DIR}`
+          PV_YAML_DIR=$(basename ${TMP_RESOURCE_DIR})
 
-      for PV in `seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS}`
-      do
-        ${SSH_COMMAND} oc create -f ${PV_YAML_DIR}/${PV}
-      done
-fi
+          for PV in $(seq -f "vol-%03g.yaml" 1 ${NUM_OF_PVS})
+          do
+            ${SSH_COMMAND} oc create -f ${PV_YAML_DIR}/${PV}
+          done
+    fi
 
-if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "true" ]; then
-  echo "Checking out Ansible 2.4..."
-  git clone https://github.com/ansible/ansible.git
-  pushd ansible
-  git checkout stable-2.4
-  source hacking/env-setup
-  popd
-  ansible --version
-  echo "Configuring OpenShift provider in ManageIQ..."
+    if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "true" ]; then
+      echo "Checking out Ansible 2.4..."
+      git clone https://github.com/ansible/ansible.git
+      pushd ansible
+      git checkout stable-2.4
+      source hacking/env-setup
+      popd
+      ansible --version
+      echo "Configuring OpenShift provider in ManageIQ..."
 
-  export OPENSHIFT_HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
-  export OPENSHIFT_PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
-  export OPENSHIFT_PROMETHEUS_METRICS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' metrics 2> /dev/null)"
-  export OPENSHIFT_CFME_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
-  export OPENSHIFT_MASTER_HOST="$(${SSH_COMMAND} oc get nodes -o name |grep master |sed -e 's/nodes\///g')"
-  export OPENSHIFT_CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
-  export OPENSHIFT_MANAGEMENT_ADMIN_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
+      export OPENSHIFT_HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
+      export OPENSHIFT_PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
+      export OPENSHIFT_PROMETHEUS_METRICS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' metrics 2> /dev/null)"
+      export OPENSHIFT_CFME_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
+      export OPENSHIFT_MASTER_HOST="$(${SSH_COMMAND} oc get nodes -o name |grep master |sed -e 's/nodes\///g')"
+      export OPENSHIFT_CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
+      export OPENSHIFT_MANAGEMENT_ADMIN_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
 
-  ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${WORKSPACE}/miqplaybook.yml
-  if [ $? -ne '0' ]; then
-    RETRCODE=1
-  fi
+      ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${WORKSPACE}/miqplaybook.yml
+      if [ $? -ne '0' ]; then
+        RETRCODE=1
+      fi
+    fi
 fi
 
 COUNTER=1
