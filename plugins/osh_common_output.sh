@@ -9,6 +9,7 @@ echo export OPENSHIFT_CFME_ROUTE=\"$(oc get route --namespace='openshift-managem
 echo export OPENSHIFT_MASTER_HOST=\"$(oc get nodes -o name |grep master |sed -e 's/nodes\///g')\"
 echo export OPENSHIFT_MANAGEMENT_ADMIN_TOKEN=\"$(oc sa get-token -n management-infra management-admin)\"
 echo export OPENSHIFT_CA_CRT=\""$(cat /etc/origin/master/ca.crt)"\"
+echo export OPENSHIFT_MONITORING_DEMO_NS=\"alerts-test\"
 echo
 echo "# Run this command to configure the provider in your local ManageIQ:"
 echo
