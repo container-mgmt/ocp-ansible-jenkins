@@ -203,6 +203,7 @@ else
     fi
 
     if [ "$INSTALL_MANAGEIQ" == "true" ] && [ "$CONFIGURE_MANAGEIQ_PROVIDER" == "true" ]; then
+
       echo "Checking out Ansible 2.4..."
       git clone https://github.com/ansible/ansible.git
       pushd ansible
@@ -210,7 +211,7 @@ else
       source hacking/env-setup
       popd
       ansible --version
-      echo "Configuring OpenShift provider in ManageIQ..."
+      echo "Collecting ManageIQ variables..."
 
       export OPENSHIFT_HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
       export OPENSHIFT_PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
@@ -220,6 +221,11 @@ else
       export OPENSHIFT_CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
       export OPENSHIFT_MANAGEMENT_ADMIN_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
 
+      echo "Running ManageIQ ruby scripts"
+      sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${WORKSPACE}/miq_scripts root@${MASTER_HOSTNAME}:
+      ${SSH_COMMAND} "oc rsync -n openshift-management miq_scripts manageiq-0: ; oc rsh -n openshift-management manageiq-0 bash miq_scripts/run.sh"
+
+      echo "Configuring OpenShift provider in ManageIQ..."
       ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${WORKSPACE}/miqplaybook.yml
       if [ $? -ne '0' ]; then
         RETRCODE=1
