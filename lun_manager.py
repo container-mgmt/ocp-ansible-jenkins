@@ -21,13 +21,11 @@ from __future__ import unicode_literals, print_function
 import argparse
 import paramiko
 import sys
-import ovirtsdk4
+import ovirt_utils
 import re
 import os
 from paramiko import SSHClient
 
-DEFAULT_OVIRT_PASS_ENV_VAR = "OV_PASS"
-cluster_pattern = re.compile("^(.*)-(?:infra|compute|master)[0-9]+")
 size_pattern = re.compile("^\d+(\.\d)?[kmg]?b$", re.I)
 
 
@@ -178,25 +176,8 @@ def get_luns(client, vserver):
     return ret
 
 
-def get_vm_clusters(ovirt_url, ovirt_user, ovirt_ca, ovirt_pass):
-    """ Get all openshift clusters on the ovirt """
-    ret = set()
-    try:
-        connection = ovirtsdk4.Connection(url=ovirt_url, username=ovirt_user,
-                                          password=ovirt_pass, ca_file=ovirt_ca)
-        vms_service = connection.system_service().vms_service()
-        for vm in vms_service.list():
-            match = cluster_pattern.match(vm.name)
-            if match is not None:
-                ret.add(match.group(1))
-    finally:
-        if connection:
-            connection.close()
-    return ret
-
-
 def cleanup(client, vserver, ovirt_url, ovirt_user, ovirt_ca, ovirt_pass):
-    clusters = get_vm_clusters(ovirt_url, ovirt_user, ovirt_ca, ovirt_pass)
+    clusters = ovirt_utils.get_vm_clusters(ovirt_url, ovirt_user, ovirt_ca, ovirt_pass)
     print("Found {0} clusters".format(len(clusters)))
     to_delete = []
     for lun in get_luns(client, vserver):
@@ -226,15 +207,7 @@ def main():
     parser.add_argument('--initiators', nargs='?', type=str, help="List of initiators for the lun igroup")
 
     # ovirt parameters, only required for "cleanup" mode
-    parser.add_argument('--ovirt-url', type=str,
-                        help='The url pointing to the oVirt Engine API end point')
-    parser.add_argument('--ovirt-user', type=str,
-                        help='The user to use to authenticate with the oVirt Engine')
-    parser.add_argument('--ovirt-ca-pem-file', type=str,
-                        help='Path to the ca pem file to use when connecting to tyhe engine')
-    parser.add_argument('--ovirt-pass', const=DEFAULT_OVIRT_PASS_ENV_VAR, nargs='?',
-                        type=str, default=DEFAULT_OVIRT_PASS_ENV_VAR,
-                        help='Env variables to use to get the password to authenticate to oVirt')
+    ovirt_utils.add_ovirt_args(parser)
 
     args = parser.parse_args()
     if args.action == "create":

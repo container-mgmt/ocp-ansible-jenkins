@@ -25,10 +25,10 @@ import logging
 import time
 import ovirtsdk4 as sdk
 import ovirtsdk4.types as types
+import ovirt_utils
 
 # CONSTANTS
 
-DEFAULT_OVIRT_PASS_ENV_VAR = "OV_PASS"
 DEFAULT_OVIRT_PUB_SSHKEY_ENV_VAR = "OV_SSH_KEY"
 
 # GLOBALS
@@ -212,14 +212,10 @@ def main():
     parser_description = 'Creates a set of VMs to be used by cm-jenkins as  openshift nodes'
     parser = argparse.ArgumentParser(description=parser_description)
     # Mandatory Parameters
+    ovirt_utils.add_ovirt_args(parser, required=True)
+
     parser.add_argument('--name-prefix', type=str, required=True,
                         help='The name to be used as a prefix for all the created VMs')
-    parser.add_argument('--ovirt-url', type=str, required=True,
-                        help='The url pointing to the oVirt Engine API end point')
-    parser.add_argument('--ovirt-user', type=str, required=True,
-                        help='The user to use to authenticate with the oVirt Engine')
-    parser.add_argument('--ovirt-ca-pem-file', type=str, required=True,
-                        help='Path to the ca pem file to use when connecting to tyhe engine')
     parser.add_argument('--ovirt-cluster', type=str, required=True,
                         help='The cluster name where to create the VMs on')
     parser.add_argument('--ovirt-template', type=str, required=True,
@@ -233,9 +229,7 @@ def main():
                         help='Number of compute nodes to create in the cluster')
     parser.add_argument('--infra-nodes', const=2, nargs='?', type=int, default=2,
                         help='Number of infra nodes to create in the cluster')
-    parser.add_argument('--ovirt-pass', const=DEFAULT_OVIRT_PASS_ENV_VAR, nargs='?',
-                        type=str, default=DEFAULT_OVIRT_PASS_ENV_VAR,
-                        help='Env variables to use to get the password to authenticate to oVirt')
+
     parser.add_argument('--pub-sshkey', const=DEFAULT_OVIRT_PUB_SSHKEY_ENV_VAR, nargs='?',
                         type=str, default=DEFAULT_OVIRT_PUB_SSHKEY_ENV_VAR,
                         help='Env variables to use to get the pub ssh key to use with cloud init')
