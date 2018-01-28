@@ -215,7 +215,7 @@ else
 
       export OPENSHIFT_HAWKULAR_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-infra' -o go-template --template='{{.spec.host}}' hawkular-metrics 2> /dev/null)"
       export OPENSHIFT_PROMETHEUS_ALERTS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' alerts 2> /dev/null)"
-      export OPENSHIFT_PROMETHEUS_METRICS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' metrics 2> /dev/null)"
+      export OPENSHIFT_PROMETHEUS_METRICS_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-metrics' -o go-template --template='{{.spec.host}}' prometheus 2> /dev/null)"
       export OPENSHIFT_CFME_ROUTE="$(${SSH_COMMAND}  oc get route --namespace='openshift-management' -o go-template --template='{{.spec.host}}' httpd 2> /dev/null)"
       export OPENSHIFT_MASTER_HOST="$(${SSH_COMMAND} oc get nodes -o name |grep master |sed -e 's/nodes\///g')"
       export OPENSHIFT_CA_CRT="$(${SSH_COMMAND} cat /etc/origin/master/ca.crt)"
