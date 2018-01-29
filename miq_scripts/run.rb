@@ -7,7 +7,7 @@ puts "Enabling C&U roles"
 
 server_config = MiqServer.my_server.get_config()
 roles = server_config.config[:server][:role].split(',')
-roles |= ['ems_metrics_collector','ems_metrics_coordinator','ems_metrics_processor']
+roles |= ['cockpit_ws', 'smartproxy', 'smartstate', 'ems_metrics_collector','ems_metrics_coordinator','ems_metrics_processor']
 roles = roles.sort().join(',')
 MiqServer.my_server.set_config(:server=>{:role => roles})
 MiqServer.my_server.save()
