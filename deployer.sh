@@ -181,15 +181,18 @@ sshpass -p${ROOT_PASSWORD} \
 
 if [ $? -ne '0' ]; then
   RETRCODE=1
-else
-    if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
-        echo "Creating iSCSI pv (for Prometheus)..."
-        export ISCSI_TARGET_PORTAL
-        export ISCSI_IQN
-        envsubst < "${WORKSPACE}/iscsi-pv-template.yaml" > iscsi_pv.yaml
-        sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz iscsi_pv.yaml root@${MASTER_HOSTNAME}:
-        ${SSH_COMMAND} oc create -f iscsi_pv.yaml
-    fi
+fi
+
+if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
+    echo "Creating iSCSI pv (for Prometheus)..."
+    export ISCSI_TARGET_PORTAL
+    export ISCSI_IQN
+    envsubst < "${WORKSPACE}/iscsi-pv-template.yaml" > iscsi_pv.yaml
+    sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz iscsi_pv.yaml root@${MASTER_HOSTNAME}:
+    ${SSH_COMMAND} oc create -f iscsi_pv.yaml
+fi
+
+if [ "$RETRCODE" == "0" ]; then
     if [ "${STORAGE_TYPE}" == "external_nfs" ]; then
           echo "Creating PVs..."
           sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
