@@ -143,9 +143,18 @@ def construct_search_by_name_query(node_name):
     return search_string.format(node_name=node_name).__str__()
 
 
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+
 def create_vms(cluster_nodes, args):
     """ creates the vms in cluster_nodes list, and skipps if they exist """
     vm_dict = {}
+    to_create = []
+
+    # Figure out which nodes we need to create, and which are already running
     for node in cluster_nodes:
         print("node=%s" % (node), file=sys.stderr)
         tmp = vms_service.list(search=construct_search_by_name_query(node))
@@ -153,36 +162,83 @@ def create_vms(cluster_nodes, args):
             vm_dict[node] = vms_service.vm_service(tmp[0].id)
             print("VM %s was found ... skipping creation" % (node), file=sys.stderr)
         else:
-            vm = vms_service.add(types.Vm(name=node,
-                                          cluster=types.Cluster(name=args.ovirt_cluster),
-                                          template=types.Template(name=args.ovirt_template)))
-            vm_service = vms_service.vm_service(vm.id)
-            counter = 1
-            while counter < args.num_of_iterations:
-                time.sleep(args.sleep_between_iterations)
-                vm = vm_service.get()
-                print("vm.status = %s" % (vm.status), file=sys.stderr)
-                if vm.status == types.VmStatus.DOWN:
-                    break
-                counter += 1
-            pub_sshkey = os.environ[args.pub_sshkey]
-            vm_service.start(use_cloud_init=True,
-                             vm=types.Vm(initialization=types.Initialization(authorized_ssh_keys=pub_sshkey)))
-            counter = 1
-            while counter < args.num_of_iterations:
-                time.sleep(args.sleep_between_iterations)
-                vm = vm_service.get()
-                print("vm.status = %s, vm.fqdn= '%s'" % (vm.status, vm.fqdn), file=sys.stderr)
-                if vm.status == types.VmStatus.UP:
-                    break
-                counter += 1
+            to_create.append(node)
 
-            if vm.status != types.VmStatus.UP:
-                print("ERROR - VM {0} still not up after {1} retries".format(node, args.num_of_iterations), file=sys.stderr)
-                sys.exit(-1)
-            else:
-                vm_dict[node] = vm_service
+    # Create the VM in "blocks"
+    for block in chunks(to_create, args.block_size):
+        block_futures = []
+        for node in block:
+            vm_future = vms_service.add(types.Vm(name=node,
+                                                 cluster=types.Cluster(name=args.ovirt_cluster),
+                                                 template=types.Template(name=args.ovirt_template)), wait=False)
+            block_futures.append((node, vm_future))
+        # wait for all the VMs from this block to be created
+        for node_name, future_vm in block_futures:
+            vm = future_vm.wait()
+            vm_dict[node_name] = vms_service.vm_service(vm.id)
+        # sleep before the next block
+        time.sleep(args.sleep_between_iterations)
+
+    # Start each VM when it's created, but try to batch the calls
+    counter = 1
+    starting = set()
+    pub_sshkey = os.environ[args.pub_sshkey]
+    # number of attempts is bigger here because it's not attempts per VM
+    # like in the other nodes.
+    while counter < args.num_of_iterations * len(cluster_nodes):
+        start_futures = []
+        for node_name, vm_service in vm_dict.items():
+            if node_name in starting:
+                continue
+            vm = vm_service.get()
+            print("%s: vm.status = %s" % (node_name, vm.status), file=sys.stderr)
+            if vm.status == types.VmStatus.DOWN:
+                print("%s: starting" % (node_name), file=sys.stderr)
+                future = vm_service.start(use_cloud_init=True, wait=False,
+                                          vm=types.Vm(initialization=types.Initialization(authorized_ssh_keys=pub_sshkey)))
+                start_futures.append(future)
+                starting.add(node_name)
+            elif vm.status == types.VmStatus.UP:
+                # make sure we don't wait forever for VMs to be down when they're
+                # already up.
+                starting.add(node_name)
+
+        # wait for this batch of VMs
+        print("batch size = %s" % len(start_futures))
+        for future in start_futures:
+            future.wait()
+
+        if len(starting) == len(cluster_nodes):
+            # We called .start() on all VMs
+            break
+
+        time.sleep(args.sleep_between_iterations)
+        counter += 1
+    else:
+        # else clause on while will run when while is finished without "break".
+        # This means not all VMs were created, and that's an error
+        not_started = set(cluster_nodes) - set(starting)
+        total_time_waited = args.num_of_iterations * args.sleep_between_iterations
+        print("ERROR - VMs {0} still not created after {1} seconds".format(not_started, total_time_waited), file=sys.stderr)
+        sys.exit(-1)
+
+    # Wait for all the VMs to be up before we wait for IPs,
+    # this serves two functions:
+    # 1) a more useful error message if the VM takes too long to start
+    # 2) effectively a more graceful timeout waiting for IPs
+    for node, vm_service in vm_dict.items():
+        counter = 1
+        while counter < args.num_of_iterations:
+            vm = vm_service.get()
+            print("%s: vm.status = %s, vm.fqdn= '%s'" % (node, vm.status, vm.fqdn), file=sys.stderr)
+            if vm.status == types.VmStatus.UP:
+                break
+            counter += 1
             time.sleep(args.sleep_between_iterations)
+
+        if vm.status != types.VmStatus.UP:
+            print("ERROR - VM {0} still not up after {1} retries".format(node, args.num_of_iterations), file=sys.stderr)
+            sys.exit(-1)
 
     ips_dict = {}
     for node, vm_service in vm_dict.items():
@@ -235,6 +291,8 @@ def main():
                         help='Env variables to use to get the pub ssh key to use with cloud init')
     parser.add_argument('--num-of-iterations', const=30, nargs='?', type=int, default=20,
                         help='Number of iterations to wait for long VM operations (create & run)')
+    parser.add_argument('--block-size', const=10, nargs='?', type=int, default=10,
+                        help='Number of VMs to create in each "block"')
     parser.add_argument('--sleep-between-iterations', const=5, nargs='?', type=int, default=5,
                         help='sleep time between iterations iterations')
 
