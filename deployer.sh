@@ -177,6 +177,17 @@ sshpass -p${ROOT_PASSWORD} \
                   --ask-pass \
                   --private-key=${ID_FILE} \
                   --inventory=${INVENTORY_PATH} \
+                  ${OPENSHIFT_ANSIBLE_PATH}/playbooks/prerequisites.yml
+
+
+
+sshpass -p${ROOT_PASSWORD} \
+                ansible-playbook \
+                  --user root \
+                  --connection=ssh \
+                  --ask-pass \
+                  --private-key=${ID_FILE} \
+                  --inventory=${INVENTORY_PATH} \
                   ${OPENSHIFT_ANSIBLE_PATH}/playbooks/deploy_cluster.yml
 
 if [ $? -ne '0' ]; then
