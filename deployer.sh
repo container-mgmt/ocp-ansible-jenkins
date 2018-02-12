@@ -177,7 +177,7 @@ sshpass -p${ROOT_PASSWORD} \
                   --ask-pass \
                   --private-key=${ID_FILE} \
                   --inventory=${INVENTORY_PATH} \
-                  ${OPENSHIFT_ANSIBLE_PATH}/playbooks/byo/config.yml
+                  ${OPENSHIFT_ANSIBLE_PATH}/playbooks/deploy_cluster.yml
 
 if [ $? -ne '0' ]; then
   RETRCODE=1
