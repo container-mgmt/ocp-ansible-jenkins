@@ -193,6 +193,7 @@ def main():
 
     # optional parameters
     parser.add_argument('--additional-registries', type=str, default="")
+    parser.add_argument('--internal-registry', type=str, default="")
     parser.add_argument('--additional-repos', type=str, default="")
     parser.add_argument('--image-version', type=str, default=DEFAULT_IMAGE_VERSION)
     parser.add_argument('--ldap-providers', type=str, default="")

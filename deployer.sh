@@ -105,6 +105,7 @@ python "${WORKSPACE}/create_inventory.py" --master-ip="${MASTER_IP}" \
                                           --enable-prometheus="${INSTALL_PROMETHEUS}" \
                                           --additional-repos="${ADDITIONAL_REPOS}" \
                                           --additional-registries="${ADDITIONAL_INSECURE_REGISTRIES}" \
+                                          --internal-registry="${INTERNAL_REGISTRY}" \
                                           --install-examples="${INSTALL_EXAMPLES}" \
                                           --ldap-providers="${LDAP_PROVIDERS}" \
                                           --ca-path="${REDHAT_IT_ROOT_CA_PATH}" \
