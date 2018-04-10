@@ -14,7 +14,7 @@ TMP_MNT_PATH="${BUILD_DIR}/mnt"
 TMP_RESOURCE_DIR="${BUILD_DIR}/${NAME_PREFIX}_PVs"
 PREDEFINED_PVS_TO_CREATE="registry metrics logging loggingops prometheus prometheus-alertmanager prometheus-alertbuffer miq-app miq-db"
 MANAGEIQ_IMAGE="${MANAGEIQ_IMAGE:-docker.io/containermgmt/manageiq-pods}"
-SSH_ARGS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=600s"
+SSH_ARGS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ControlMaster=auto -o ControlPersist=600s"
 WILDCARD_DNS_SERVICE="${WILDCARD_DNS_SERVICE:-xip.io}"
 STORAGE_TYPE="${STORAGE_TYPE:-external_nfs}"
 
@@ -169,6 +169,22 @@ if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
 fi
 
 RETRCODE=0
+
+function install_repo() {
+    IP=${1}
+    sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${IP}" "curl  https://storage.googleapis.com/origin-ci-test/releases/openshift/origin/master/origin.repo > /etc/yum.repos.d/origin-master.repo; yum update -y"
+}
+
+install_repo "${MASTER_HOSTNAME}"
+
+for IP in ${INFRA_IPS}; do
+    install_repo "${IP}"
+done
+
+for IP in ${COMPUTE_IPS}; do
+    install_repo "${IP}"
+done
+
 SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
 
 sshpass -p${ROOT_PASSWORD} \
