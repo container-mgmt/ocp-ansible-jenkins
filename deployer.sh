@@ -261,6 +261,8 @@ else
     fi
 fi
 
+sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${INVENTORY_PATH} root@${MASTER_HOSTNAME}:inventory.ini
+
 COUNTER=1
 for URL in $PLUGIN_URLS
 do
