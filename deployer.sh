@@ -2,10 +2,7 @@
 BUILD_DIR="${WORKSPACE}/${BUILD_ID}"
 PV_FILE_TEMPLATE="${WORKSPACE}/pv-template.yaml"
 INVENTORY_PATH="${BUILD_DIR}/inventory.ini"
-OPENSHIFT_ANSIBLE_PATH="${BUILD_DIR}/openshift-ansible"
 ENVIRONMENT_FILE="${BUILD_DIR}/environment"
-ID_FILE="${WORKSPACE}/../id_rsa"
-REDHAT_IT_ROOT_CA_PATH="/etc/pki/ca-trust/source/anchors/RH-IT-Root-CA.crt"
 NAME_PREFIX="${NAME_PREFIX:-ocp}"
 EXT_NFS_BASE_EXPORT_PATH_NORMALIZED=$(echo ${EXT_NFS_BASE_EXPORT_PATH} | sed 's./.\\/.g')
 CLUSTER_EXT_NFS_BASE_EXPORT_PATH="${EXT_NFS_BASE_EXPORT_PATH_NORMALIZED}\/${NAME_PREFIX}"
@@ -17,8 +14,6 @@ MANAGEIQ_IMAGE="${MANAGEIQ_IMAGE:-docker.io/containermgmt/manageiq-pods}"
 SSH_ARGS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ControlMaster=auto -o ControlPersist=600s"
 WILDCARD_DNS_SERVICE="${WILDCARD_DNS_SERVICE:-xip.io}"
 STORAGE_TYPE="${STORAGE_TYPE:-external_nfs}"
-
-ansible --version
 
 
 sudo_mkdir_if_not_exist () {
@@ -36,7 +31,7 @@ mkdir ${BUILD_DIR}
 export| tee ${ENVIRONMENT_FILE}
 echo "#######################################################################"
 echo "# Running in: ${BUILD_DIR}"
-echo "# Revision:   $(git log --oneline -1)"
+echo "# Image:      ${OPENSHIFT_ANSIBLE_IMAGE}"
 echo "# Rerun with: "
 echo ". ${ENVIRONMENT_FILE} ; $(realpath deployer)"
 echo "#######################################################################"
@@ -69,11 +64,10 @@ fi
 
 
 #
-# Checkout openshift-ansible
+# Pull origin/openshift-ansible
 #
-(cd ${BUILD_DIR} && git clone $OPENSHIFT_ANSIBLE_REPO_URL $OPENSHIFT_ANSIBLE_PATH)
-
-(cd $OPENSHIFT_ANSIBLE_PATH && exec git checkout -B deployment $OPENSHIFT_ANSIBLE_REF)
+cd "${BUILD_DIR}"
+sudo docker pull "${OPENSHIFT_ANSIBLE_IMAGE}"
 
 #
 # Build inventory Variables for substitution
@@ -186,25 +180,23 @@ done
 
 SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
 
-sshpass -p${ROOT_PASSWORD} \
-                ansible-playbook \
-                  --user root \
-                  --connection=ssh \
-                  --ask-pass \
-                  --private-key=${ID_FILE} \
-                  --inventory=${INVENTORY_PATH} \
-                  ${OPENSHIFT_ANSIBLE_PATH}/playbooks/prerequisites.yml
+sshpass -p"${ROOT_PASSWORD}" \
+      sudo docker run -u "$(id -u)" \
+       -v "$HOME/.ssh/id_rsa:/opt/app-root/src/.ssh/id_rsa:Z" \
+       -v "${INVENTORY_PATH}:/tmp/inventory" \
+       -e INVENTORY_FILE=/tmp/inventory \
+       -e PLAYBOOK_FILE=playbooks/prerequisites.yml \
+       -e OPTS="--user root --connection=ssh --ask-pass" -t \
+       "${OPENSHIFT_ANSIBLE_IMAGE}"
 
-
-
-sshpass -p${ROOT_PASSWORD} \
-                ansible-playbook \
-                  --user root \
-                  --connection=ssh \
-                  --ask-pass \
-                  --private-key=${ID_FILE} \
-                  --inventory=${INVENTORY_PATH} \
-                  ${OPENSHIFT_ANSIBLE_PATH}/playbooks/deploy_cluster.yml
+sshpass -p"${ROOT_PASSWORD}" \
+      sudo docker run -u "$(id -u)" \
+       -v "$HOME/.ssh/id_rsa:/opt/app-root/src/.ssh/id_rsa:Z" \
+       -v "${INVENTORY_PATH}:/tmp/inventory" \
+       -e INVENTORY_FILE=/tmp/inventory \
+       -e PLAYBOOK_FILE=playbooks/deploy_cluster.yml \
+       -e OPTS="--user root --connection=ssh --ask-pass" -t \
+       "${OPENSHIFT_ANSIBLE_IMAGE}"
 
 if [ $? -ne '0' ]; then
   RETRCODE=1
@@ -214,12 +206,12 @@ else
         export ISCSI_TARGET_PORTAL
         export ISCSI_IQN
         envsubst < "${WORKSPACE}/iscsi-pv-template.yaml" > iscsi_pv.yaml
-        sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz iscsi_pv.yaml root@${MASTER_HOSTNAME}:
+        sshpass -p"${ROOT_PASSWORD}" rsync -e "ssh ${SSH_ARGS}" -Pahvz iscsi_pv.yaml root@${MASTER_HOSTNAME}:
         ${SSH_COMMAND} oc create -f iscsi_pv.yaml
     fi
     if [ "${STORAGE_TYPE}" == "external_nfs" ]; then
           echo "Creating PVs..."
-          sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
+          sshpass -p"${ROOT_PASSWORD}" rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
 
           PV_YAML_DIR=$(basename ${TMP_RESOURCE_DIR})
 
