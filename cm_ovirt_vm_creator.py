@@ -204,7 +204,7 @@ def create_vms(cluster_nodes, args):
                 starting.add(node_name)
 
         # wait for this batch of VMs
-        print("batch size = %s" % len(start_futures))
+        print("batch size = %s" % len(start_futures), file=sys.stderr)
         for future in start_futures:
             future.wait()
 
