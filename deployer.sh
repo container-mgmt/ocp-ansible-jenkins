@@ -1,6 +1,6 @@
 #! /bin/bash
 BUILD_DIR="${WORKSPACE}/${BUILD_ID}"
-PV_FILE_TEMPLATE="${WORKSPACE}/pv-template.yaml"
+PV_FILE_TEMPLATE="${BUILD_DIR}/pv-template.yaml"
 INVENTORY_PATH="${BUILD_DIR}/inventory.ini"
 ENVIRONMENT_FILE="${BUILD_DIR}/environment"
 NAME_PREFIX="${NAME_PREFIX:-ocp}"
@@ -26,8 +26,6 @@ sudo_mkdir_if_not_exist () {
 }
 
 
-
-mkdir ${BUILD_DIR}
 export| tee ${ENVIRONMENT_FILE}
 echo "#######################################################################"
 echo "# Running in: ${BUILD_DIR}"
@@ -85,7 +83,7 @@ fi
 if [ "$STORAGE_TYPE" == "internal_nfs_custom" ]; then
     STORAGE_TYPE="internal_nfs"
 fi
-python "${WORKSPACE}/create_inventory.py" --master-ip="${MASTER_IP}" \
+python "${BUILD_DIR}/create_inventory.py" --master-ip="${MASTER_IP}" \
                                           --infra-ips="${INFRA_IPS}" \
                                           --compute-ips="${COMPUTE_IPS}" \
                                           --name-prefix="${NAME_PREFIX}" \
@@ -150,7 +148,7 @@ if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
     echo "Creating iscsi LUN..."
 
     set -e
-    ISCSI_LUN_ID=$(python "${WORKSPACE}/lun_manager.py" --server="${NETAPP_SERVER}" \
+    ISCSI_LUN_ID=$(python "${BUILD_DIR}/lun_manager.py" --server="${NETAPP_SERVER}" \
                                                         --user="${NETAPP_USER}" \
                                                         --name="cm-${NAME_PREFIX}" \
                                                         --volume="${NETAPP_VOLUME}" \
@@ -205,7 +203,7 @@ else
         echo "Creating iSCSI pv (for Prometheus)..."
         export ISCSI_TARGET_PORTAL
         export ISCSI_IQN
-        envsubst < "${WORKSPACE}/iscsi-pv-template.yaml" > iscsi_pv.yaml
+        envsubst < "${BUILD_DIR}/iscsi-pv-template.yaml" > iscsi_pv.yaml
         sshpass -p"${ROOT_PASSWORD}" rsync -e "ssh ${SSH_ARGS}" -Pahvz iscsi_pv.yaml root@${MASTER_HOSTNAME}:
         ${SSH_COMMAND} oc create -f iscsi_pv.yaml
     fi
@@ -241,11 +239,11 @@ else
       export OPENSHIFT_MANAGEMENT_ADMIN_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
 
       echo "Running ManageIQ ruby scripts"
-      sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${WORKSPACE}/miq_scripts root@${MASTER_HOSTNAME}:
+      sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${BUILD_DIR}/miq_scripts root@${MASTER_HOSTNAME}:
       ${SSH_COMMAND} "oc rsync -n openshift-management miq_scripts manageiq-0: ; oc rsh -n openshift-management manageiq-0 bash miq_scripts/run.sh"
 
       echo "Configuring OpenShift provider in ManageIQ..."
-      ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${WORKSPACE}/miqplaybook.yml
+      ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${BUILD_DIR}/miqplaybook.yml
       if [ $? -ne '0' ]; then
         RETRCODE=1
       fi
