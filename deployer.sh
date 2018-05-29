@@ -181,6 +181,7 @@ SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
 sudo docker run -u "$(id -u)" \
        -v "$HOME/.ssh/id_rsa:/opt/app-root/src/.ssh/id_rsa:Z" \
        -v "${INVENTORY_PATH}:/tmp/inventory" \
+       -v "${REDHAT_IT_ROOT_CA_PATH}:${REDHAT_IT_ROOT_CA_PATH}" \
        -e INVENTORY_FILE=/tmp/inventory \
        -e PLAYBOOK_FILE=playbooks/prerequisites.yml \
        -e OPTS="--user root --connection=ssh" \
@@ -189,6 +190,7 @@ sudo docker run -u "$(id -u)" \
 sudo docker run -u "$(id -u)" \
        -v "$HOME/.ssh/id_rsa:/opt/app-root/src/.ssh/id_rsa:Z" \
        -v "${INVENTORY_PATH}:/tmp/inventory" \
+       -v "${REDHAT_IT_ROOT_CA_PATH}:${REDHAT_IT_ROOT_CA_PATH}" \
        -e INVENTORY_FILE=/tmp/inventory \
        -e PLAYBOOK_FILE=playbooks/deploy_cluster.yml \
        -e OPTS="--user root --connection=ssh" \
