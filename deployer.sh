@@ -178,22 +178,20 @@ done
 
 SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
 
-sshpass -p"${ROOT_PASSWORD}" \
-      sudo docker run -u "$(id -u)" \
+sudo docker run -u "$(id -u)" \
        -v "$HOME/.ssh/id_rsa:/opt/app-root/src/.ssh/id_rsa:Z" \
        -v "${INVENTORY_PATH}:/tmp/inventory" \
        -e INVENTORY_FILE=/tmp/inventory \
        -e PLAYBOOK_FILE=playbooks/prerequisites.yml \
-       -e OPTS="--user root --connection=ssh --ask-pass" -t \
+       -e OPTS="--user root --connection=ssh" \
        "${OPENSHIFT_ANSIBLE_IMAGE}"
 
-sshpass -p"${ROOT_PASSWORD}" \
-      sudo docker run -u "$(id -u)" \
+sudo docker run -u "$(id -u)" \
        -v "$HOME/.ssh/id_rsa:/opt/app-root/src/.ssh/id_rsa:Z" \
        -v "${INVENTORY_PATH}:/tmp/inventory" \
        -e INVENTORY_FILE=/tmp/inventory \
        -e PLAYBOOK_FILE=playbooks/deploy_cluster.yml \
-       -e OPTS="--user root --connection=ssh --ask-pass" -t \
+       -e OPTS="--user root --connection=ssh" \
        "${OPENSHIFT_ANSIBLE_IMAGE}"
 
 if [ $? -ne '0' ]; then
