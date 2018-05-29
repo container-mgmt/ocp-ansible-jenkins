@@ -125,9 +125,9 @@ def print_ips(vm_dict):
             nodes.append(vm_ip)
     print()
     print("#################################################################")
-    print('MASTER_IP="{0}"'.format(" ".join(masters)))
-    print('INFRA_IPS="{0}"'.format(" ".join(infra_nodes)))
-    print('NODE_IPS="{0}"'.format(" ".join(nodes)))
+    print('export MASTER_IP="{0}"'.format(" ".join(masters)))
+    print('export INFRA_IPS="{0}"'.format(" ".join(infra_nodes)))
+    print('export NODE_IPS="{0}"'.format(" ".join(nodes)))
     print("#################################################################")
 
 
