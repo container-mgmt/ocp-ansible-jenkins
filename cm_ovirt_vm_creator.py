@@ -104,6 +104,8 @@ def find_vm_ip(vm):
     """ Find the IPv4 address of a given VM """
     for dev in vm.reported_devices_service().list():
         if dev.name == 'eth0':
+            if dev.ips is None:
+                return None
             for ip in dev.ips:
                 if ip.version == types.IpVersion.V4:
                     return ip.address
