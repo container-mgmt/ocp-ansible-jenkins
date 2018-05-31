@@ -104,6 +104,8 @@ def find_vm_ip(vm):
     """ Find the IPv4 address of a given VM """
     for dev in vm.reported_devices_service().list():
         if dev.name == 'eth0':
+            if dev.ips is None:
+                return None
             for ip in dev.ips:
                 if ip.version == types.IpVersion.V4:
                     return ip.address
@@ -123,9 +125,9 @@ def print_ips(vm_dict):
             nodes.append(vm_ip)
     print()
     print("#################################################################")
-    print('MASTER_IP="{0}"'.format(" ".join(masters)))
-    print('INFRA_IPS="{0}"'.format(" ".join(infra_nodes)))
-    print('NODE_IPS="{0}"'.format(" ".join(nodes)))
+    print('export MASTER_IP="{0}"'.format(" ".join(masters)))
+    print('export INFRA_IPS="{0}"'.format(" ".join(infra_nodes)))
+    print('export COMPUTE_IPS="{0}"'.format(" ".join(nodes)))
     print("#################################################################")
 
 
@@ -204,7 +206,7 @@ def create_vms(cluster_nodes, args):
                 starting.add(node_name)
 
         # wait for this batch of VMs
-        print("batch size = %s" % len(start_futures))
+        print("batch size = %s" % len(start_futures), file=sys.stderr)
         for future in start_futures:
             future.wait()
 

@@ -85,9 +85,9 @@ def build_spec(node_type, ips, name_prefix, wildcard_dns):
     """ Build spec for compute/infra nodes """
     spec_list = ""
     if node_type == "infra":
-        node_labels = "{'region': 'infra', 'zone': 'default'}"
+        node_labels = "{'region': 'infra', 'zone': 'default', 'node-role.kubernetes.io/infra': 'true'}"
     else:
-        node_labels = "{'region': 'primary', 'zone': 'default'}"
+        node_labels = "{'region': 'primary', 'zone': 'default', 'node-role.kubernetes.io/compute': 'true'}"
 
     for i, ip in enumerate(ips, 1):
         host = format_host(node_type, name_prefix, i, ip, wildcard_dns)
@@ -129,12 +129,14 @@ def create_inventory(master, infra, compute, args):
     # Build host specs
     master_hostname = format_host("master", args.name_prefix, 1, master,
                                   args.wildcard_dns)
-    master_spec = "{master_hostname} openshift_hostname={master_hostname}".format(master_hostname=master_hostname)
+    node_labels = "{'node-role.kubernetes.io/infra': 'true', 'node-role.kubernetes.io/master': 'true'}"
+    master_spec = "{master_hostname} openshift_hostname={master_hostname} openshift_node_labels=\"{node_labels}\"".format(node_labels=node_labels, master_hostname=master_hostname)
 
     # prepare arguments for formatting the template
     format_args = vars(args)  # start with the command line arguments
 
     # Build the spec for the nodes
+    format_args['master_hostname'] = master_hostname
     format_args['master_spec'] = master_spec
     format_args['infra_spec'] = build_spec("infra", infra, args.name_prefix, args.wildcard_dns)
     format_args['compute_spec'] = build_spec("compute", compute, args.name_prefix, args.wildcard_dns)

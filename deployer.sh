@@ -1,11 +1,8 @@
 #! /bin/bash
 BUILD_DIR="${WORKSPACE}/${BUILD_ID}"
-PV_FILE_TEMPLATE="${WORKSPACE}/pv-template.yaml"
+PV_FILE_TEMPLATE="${BUILD_DIR}/pv-template.yaml"
 INVENTORY_PATH="${BUILD_DIR}/inventory.ini"
-OPENSHIFT_ANSIBLE_PATH="${BUILD_DIR}/openshift-ansible"
 ENVIRONMENT_FILE="${BUILD_DIR}/environment"
-ID_FILE="${WORKSPACE}/../id_rsa"
-REDHAT_IT_ROOT_CA_PATH="/etc/pki/ca-trust/source/anchors/RH-IT-Root-CA.crt"
 NAME_PREFIX="${NAME_PREFIX:-ocp}"
 EXT_NFS_BASE_EXPORT_PATH_NORMALIZED=$(echo ${EXT_NFS_BASE_EXPORT_PATH} | sed 's./.\\/.g')
 CLUSTER_EXT_NFS_BASE_EXPORT_PATH="${EXT_NFS_BASE_EXPORT_PATH_NORMALIZED}\/${NAME_PREFIX}"
@@ -14,11 +11,9 @@ TMP_MNT_PATH="${BUILD_DIR}/mnt"
 TMP_RESOURCE_DIR="${BUILD_DIR}/${NAME_PREFIX}_PVs"
 PREDEFINED_PVS_TO_CREATE="registry metrics logging loggingops prometheus prometheus-alertmanager prometheus-alertbuffer miq-app miq-db"
 MANAGEIQ_IMAGE="${MANAGEIQ_IMAGE:-docker.io/containermgmt/manageiq-pods}"
-SSH_ARGS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=600s"
+SSH_ARGS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ControlMaster=auto -o ControlPersist=600s"
 WILDCARD_DNS_SERVICE="${WILDCARD_DNS_SERVICE:-xip.io}"
 STORAGE_TYPE="${STORAGE_TYPE:-external_nfs}"
-
-ansible --version
 
 
 sudo_mkdir_if_not_exist () {
@@ -31,12 +26,10 @@ sudo_mkdir_if_not_exist () {
 }
 
 
-
-mkdir ${BUILD_DIR}
 export| tee ${ENVIRONMENT_FILE}
 echo "#######################################################################"
 echo "# Running in: ${BUILD_DIR}"
-echo "# Revision:   $(git log --oneline -1)"
+echo "# Image:      ${OPENSHIFT_ANSIBLE_IMAGE}"
 echo "# Rerun with: "
 echo ". ${ENVIRONMENT_FILE} ; $(realpath deployer)"
 echo "#######################################################################"
@@ -69,11 +62,10 @@ fi
 
 
 #
-# Checkout openshift-ansible
+# Pull origin/openshift-ansible
 #
-(cd ${BUILD_DIR} && git clone $OPENSHIFT_ANSIBLE_REPO_URL $OPENSHIFT_ANSIBLE_PATH)
-
-(cd $OPENSHIFT_ANSIBLE_PATH && exec git checkout -B deployment $OPENSHIFT_ANSIBLE_REF)
+cd "${BUILD_DIR}"
+sudo docker pull "${OPENSHIFT_ANSIBLE_IMAGE}"
 
 #
 # Build inventory Variables for substitution
@@ -91,7 +83,7 @@ fi
 if [ "$STORAGE_TYPE" == "internal_nfs_custom" ]; then
     STORAGE_TYPE="internal_nfs"
 fi
-python "${WORKSPACE}/create_inventory.py" --master-ip="${MASTER_IP}" \
+python "${BUILD_DIR}/create_inventory.py" --master-ip="${MASTER_IP}" \
                                           --infra-ips="${INFRA_IPS}" \
                                           --compute-ips="${COMPUTE_IPS}" \
                                           --name-prefix="${NAME_PREFIX}" \
@@ -105,7 +97,6 @@ python "${WORKSPACE}/create_inventory.py" --master-ip="${MASTER_IP}" \
                                           --enable-prometheus="${INSTALL_PROMETHEUS}" \
                                           --additional-repos="${ADDITIONAL_REPOS}" \
                                           --additional-registries="${ADDITIONAL_INSECURE_REGISTRIES}" \
-                                          --internal-registry="${INTERNAL_REGISTRY}" \
                                           --install-examples="${INSTALL_EXAMPLES}" \
                                           --ldap-providers="${LDAP_PROVIDERS}" \
                                           --ca-path="${REDHAT_IT_ROOT_CA_PATH}" \
@@ -157,7 +148,7 @@ if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
     echo "Creating iscsi LUN..."
 
     set -e
-    ISCSI_LUN_ID=$(python "${WORKSPACE}/lun_manager.py" --server="${NETAPP_SERVER}" \
+    ISCSI_LUN_ID=$(python "${BUILD_DIR}/lun_manager.py" --server="${NETAPP_SERVER}" \
                                                         --user="${NETAPP_USER}" \
                                                         --name="cm-${NAME_PREFIX}" \
                                                         --volume="${NETAPP_VOLUME}" \
@@ -169,27 +160,41 @@ if [ "${INSTALL_PROMETHEUS}" == "true" ]; then
 fi
 
 RETRCODE=0
+
+function install_repo() {
+    IP=${1}
+    sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${IP}" "curl  https://storage.googleapis.com/origin-ci-test/releases/openshift/origin/master/origin.repo > /etc/yum.repos.d/origin-master.repo; yum update -y"
+}
+
+install_repo "${MASTER_HOSTNAME}"
+
+for IP in ${INFRA_IPS}; do
+    install_repo "${IP}"
+done
+
+for IP in ${COMPUTE_IPS}; do
+    install_repo "${IP}"
+done
+
 SSH_COMMAND="sshpass -p${ROOT_PASSWORD} ssh ${SSH_ARGS} root@${MASTER_HOSTNAME}"
 
-sshpass -p${ROOT_PASSWORD} \
-                ansible-playbook \
-                  --user root \
-                  --connection=ssh \
-                  --ask-pass \
-                  --private-key=${ID_FILE} \
-                  --inventory=${INVENTORY_PATH} \
-                  ${OPENSHIFT_ANSIBLE_PATH}/playbooks/prerequisites.yml
+sudo docker run -u "$(id -u)" \
+       -v "$HOME/.ssh/id_rsa:/opt/app-root/src/.ssh/id_rsa:Z" \
+       -v "${INVENTORY_PATH}:/tmp/inventory" \
+       -v "${REDHAT_IT_ROOT_CA_PATH}:${REDHAT_IT_ROOT_CA_PATH}" \
+       -e INVENTORY_FILE=/tmp/inventory \
+       -e PLAYBOOK_FILE=playbooks/prerequisites.yml \
+       -e OPTS="--user root --connection=ssh" \
+       "${OPENSHIFT_ANSIBLE_IMAGE}"
 
-
-
-sshpass -p${ROOT_PASSWORD} \
-                ansible-playbook \
-                  --user root \
-                  --connection=ssh \
-                  --ask-pass \
-                  --private-key=${ID_FILE} \
-                  --inventory=${INVENTORY_PATH} \
-                  ${OPENSHIFT_ANSIBLE_PATH}/playbooks/deploy_cluster.yml
+sudo docker run -u "$(id -u)" \
+       -v "$HOME/.ssh/id_rsa:/opt/app-root/src/.ssh/id_rsa:Z" \
+       -v "${INVENTORY_PATH}:/tmp/inventory" \
+       -v "${REDHAT_IT_ROOT_CA_PATH}:${REDHAT_IT_ROOT_CA_PATH}" \
+       -e INVENTORY_FILE=/tmp/inventory \
+       -e PLAYBOOK_FILE=playbooks/deploy_cluster.yml \
+       -e OPTS="--user root --connection=ssh" \
+       "${OPENSHIFT_ANSIBLE_IMAGE}"
 
 if [ $? -ne '0' ]; then
   RETRCODE=1
@@ -198,13 +203,13 @@ else
         echo "Creating iSCSI pv (for Prometheus)..."
         export ISCSI_TARGET_PORTAL
         export ISCSI_IQN
-        envsubst < "${WORKSPACE}/iscsi-pv-template.yaml" > iscsi_pv.yaml
-        sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz iscsi_pv.yaml root@${MASTER_HOSTNAME}:
+        envsubst < "${BUILD_DIR}/iscsi-pv-template.yaml" > iscsi_pv.yaml
+        sshpass -p"${ROOT_PASSWORD}" rsync -e "ssh ${SSH_ARGS}" -Pahvz iscsi_pv.yaml root@${MASTER_HOSTNAME}:
         ${SSH_COMMAND} oc create -f iscsi_pv.yaml
     fi
     if [ "${STORAGE_TYPE}" == "external_nfs" ]; then
           echo "Creating PVs..."
-          sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
+          sshpass -p"${ROOT_PASSWORD}" rsync -e "ssh ${SSH_ARGS}" -Pahvz ${TMP_RESOURCE_DIR} root@${MASTER_HOSTNAME}:
 
           PV_YAML_DIR=$(basename ${TMP_RESOURCE_DIR})
 
@@ -234,16 +239,18 @@ else
       export OPENSHIFT_MANAGEMENT_ADMIN_TOKEN="$(${SSH_COMMAND} oc sa get-token -n management-infra management-admin)"
 
       echo "Running ManageIQ ruby scripts"
-      sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${WORKSPACE}/miq_scripts root@${MASTER_HOSTNAME}:
+      sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${BUILD_DIR}/miq_scripts root@${MASTER_HOSTNAME}:
       ${SSH_COMMAND} "oc rsync -n openshift-management miq_scripts manageiq-0: ; oc rsh -n openshift-management manageiq-0 bash miq_scripts/run.sh"
 
       echo "Configuring OpenShift provider in ManageIQ..."
-      ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${WORKSPACE}/miqplaybook.yml
+      ansible-playbook --extra-vars "provider_name=${NAME_PREFIX} cfme_route=https://${OPENSHIFT_CFME_ROUTE}" ${BUILD_DIR}/miqplaybook.yml
       if [ $? -ne '0' ]; then
         RETRCODE=1
       fi
     fi
 fi
+
+sshpass -p${ROOT_PASSWORD} rsync -e "ssh ${SSH_ARGS}" -Pahvz ${INVENTORY_PATH} root@${MASTER_HOSTNAME}:inventory.ini
 
 COUNTER=1
 for URL in $PLUGIN_URLS
