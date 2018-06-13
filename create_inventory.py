@@ -85,14 +85,14 @@ def build_spec(node_type, ips, name_prefix, wildcard_dns):
     """ Build spec for compute/infra nodes """
     spec_list = ""
     if node_type == "infra":
-        node_labels = "{'region': 'infra', 'zone': 'default', 'node-role.kubernetes.io/infra': 'true'}"
+        node_groups = "node-config-infra"
     else:
-        node_labels = "{'region': 'primary', 'zone': 'default', 'node-role.kubernetes.io/compute': 'true'}"
+        node_groups = "node-config-compute"
 
     for i, ip in enumerate(ips, 1):
         host = format_host(node_type, name_prefix, i, ip, wildcard_dns)
-        spec = "{host} openshift_hostname={host} openshift_node_labels=\"{node_labels}\"\n"
-        spec = spec.format(node_labels=node_labels, host=host)
+        spec = "{host} openshift_hostname={host} openshift_node_group_name=\"{node_groups}\"\n"
+        spec = spec.format(node_groups=node_groups, host=host)
         spec_list += spec
     return spec_list
 
@@ -129,8 +129,7 @@ def create_inventory(master, infra, compute, args):
     # Build host specs
     master_hostname = format_host("master", args.name_prefix, 1, master,
                                   args.wildcard_dns)
-    node_labels = "{'node-role.kubernetes.io/infra': 'true', 'node-role.kubernetes.io/master': 'true'}"
-    master_spec = "{master_hostname} openshift_hostname={master_hostname} openshift_node_labels=\"{node_labels}\"".format(node_labels=node_labels, master_hostname=master_hostname)
+    master_spec = "{master_hostname} openshift_hostname={master_hostname} openshift_node_group_name=\"node-config-master\"".format(master_hostname=master_hostname)
 
     # prepare arguments for formatting the template
     format_args = vars(args)  # start with the command line arguments
