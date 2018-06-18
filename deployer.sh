@@ -163,7 +163,7 @@ RETRCODE=0
 
 function install_repo() {
     IP=${1}
-    sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${IP}" "curl  https://storage.googleapis.com/origin-ci-test/releases/openshift/origin/master/origin.repo > /etc/yum.repos.d/origin-master.repo; yum update -y"
+    sshpass -p"${ROOT_PASSWORD}" ssh ${SSH_ARGS} "root@${IP}" "curl https://storage.googleapis.com/origin-ci-test/releases/openshift/origin/release-3.10/origin.repo > /etc/yum.repos.d/origin-master.repo; yum update -y"
 }
 
 install_repo "${MASTER_HOSTNAME}"
